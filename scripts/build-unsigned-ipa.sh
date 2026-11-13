@@ -36,7 +36,7 @@ for bundle in "$app" "$widget"; do
   executable="$bundle/$(plist_value "$bundle" CFBundleExecutable)"
   if [[ ! -x "$executable" ]] ||
      [[ $(plist_value "$bundle" CFBundleSupportedPlatforms:0) != iPhoneOS ]] ||
-     ! xcrun lipo -verify_arch arm64 "$executable"; then
+     ! xcrun lipo "$executable" -verify_arch arm64; then
     printf 'Expected an arm64 iPhoneOS executable at %s\n' "$executable" >&2
     exit 1
   fi

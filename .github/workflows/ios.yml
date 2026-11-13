@@ -61,7 +61,7 @@ jobs:
           destination=$(xcrun simctl list devices available -j | jq -cer '
             [.devices | to_entries[]
              | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
-             | (.key | split("-")[1:] | map(tonumber)) as $version
+             | (.key | capture("iOS-(?<version>[0-9]+(?:-[0-9]+)*)").version | split("-") | map(tonumber)) as $version
              | .value[]
              | select(.name == "iPhone 18 Pro" or .name == "iPhone 17")
              | {name, udid, version: $version}]
