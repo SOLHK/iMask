@@ -3,6 +3,7 @@ import UIKit
 
 struct DiagnosticsView: View {
     @ObservedObject var session: RefreshSession
+    @ObservedObject var mask: MaskSession
     @State private var report = ""
     @State private var export: ExportFile?
     @State private var exportError: String?
@@ -10,15 +11,18 @@ struct DiagnosticsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("画中画状态", value: session.phase.title)
+                LabeledContent("画中画状态", value: session.engine.title)
                 LabeledContent("悬浮窗", value: session.isMinimized ? "最小化" : "显示")
+                LabeledContent("保活模式", value: session.engine.policy.title)
+                LabeledContent("黑色灵动岛", value: mask.statusTitle)
                 Button("检查当前状态") { refreshReport() }
                     .accessibilityIdentifier("refreshDiagnostics")
                 Button("导出诊断日志") {
                     session.refresh()
+                    mask.refresh(reason: "export")
                     do {
-                        let file = try session.diagnostics.export(snapshot: session.diagnosticSnapshot)
-                        report = session.diagnostics.report(snapshot: session.diagnosticSnapshot)
+                        let file = try session.diagnostics.export(snapshot: combinedSnapshot)
+                        report = session.diagnostics.report(snapshot: combinedSnapshot)
                         export = ExportFile(url: file)
                     } catch {
                         exportError = "无法生成日志文件。\(error.localizedDescription)"
@@ -26,7 +30,7 @@ struct DiagnosticsView: View {
                 }
                 .accessibilityIdentifier("exportDiagnostics")
             } footer: {
-                Text("导出设备信息、画中画状态、帧率采样和最近 256 条事件。日志保存在本机。")
+                Text("导出设备信息、画中画与灵动岛状态、原项目运行日志和本机诊断事件。")
             }
 
             Section {
@@ -68,7 +72,12 @@ struct DiagnosticsView: View {
 
     private func refreshReport() {
         session.refresh()
-        report = session.diagnostics.report(snapshot: session.diagnosticSnapshot)
+        mask.refresh(reason: "diagnostics")
+        report = session.diagnostics.report(snapshot: combinedSnapshot)
+    }
+
+    private var combinedSnapshot: String {
+        session.diagnosticSnapshot + "\n\n" + mask.diagnosticSnapshot
     }
 
     private struct ExportFile: Identifiable {

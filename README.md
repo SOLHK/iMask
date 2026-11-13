@@ -1,48 +1,46 @@
 # iMask
 
-iMask 2.0 是使用 SwiftUI 与 AVKit 的 iPhone 高刷新率辅助工具。首页重新设计为单页控制台，提供开启/停止、PiP 窗口模式、屏幕上限、本页帧率与诊断日志。最低支持 iOS 17。
+iMask 2.1 在重新设计的 SwiftUI 界面中集成 GlobalRefresh-PiP 高刷运行核心，并恢复标准长度的纯黑灵动岛。高刷与黑色灵动岛分别开关。最低支持 iOS 17。
 
-## 运行方式
+## 功能
 
-点击“开启高刷”会创建 VideoCall 画中画并启动内容更新。实际运行状态由 AVKit 的启动、停止和失败回调确认。选择“最小化”时请求 300 × 0.1 pt 的内容尺寸，选择“显示”时请求 300 × 44 pt。停止会释放 PiP、更新驱动和帧率采样。
+- 高刷核心直接使用 Yoroin/GlobalRefresh-PiP 提交 `1b62341c1d62308962fb3656192d6783631aa00c` 的原控制器。
+- 保留 VideoCall 默认方案与 PlayerLayer 兼容方案，以及原有生成视频、播放循环、超时处理、音频中断恢复和后台状态管理。
+- 保留三种保活策略：仅 PiP（默认）、锁屏音频增强、音频强保活。音频策略使用上游自带的 `slience.mp3`，具体行为在设置页显示，需用户自行选择。
+- 保留一键开启并隐藏、窗口高度调整及记忆、文字滚动、时钟内容、关闭确认、被挤出通知、极限静默和快捷指令功能。
+- 保留原项目的 VideoCall 隐藏与画中画共存适配代码及运行时方法签名检查。
+- 黑色灵动岛使用 ActivityKit + WidgetKit，固定为 1.1–1.3 的“标准”尺寸参数，compact 左右内容各 15 pt、高 16 pt；不提供长度档位。
+- 导出同一份 `iMask-diagnostics.txt`，包含高刷底层、保活、音频、窗口、ActivityKit 状态和原项目运行日志。
 
-App 前台请求最高 120Hz，并从 CADisplayLink 的实际回调间隔计算“本页帧率”。PiP 内容按参考项目的 60fps 内容更新配置运行。屏幕上限从设备读取。其他 App 的屏幕刷新率无法由本 App 直接测量，诊断中记为 `globalDisplayRefreshRate=unavailable`。
+## 使用
 
-此方案的跨 App 效果和 0.1 pt 最小化表现取决于系统，需在真机确认。Apple 的帧率接口向系统提交偏好，系统会结合硬件、电量、温度与前台 App 调度。因此，120Hz 是请求目标，无法保证所有 App 固定在该值。[Apple ProMotion 文档](https://developer.apple.com/documentation/quartzcore/optimizing-iphone-and-ipad-apps-to-support-promotion-displays)
+1. 开启高刷，或使用“一键开启并隐藏悬浮窗”。
+2. 在“运行方案与保活”里选择底层和保活模式、调整窗口与内容选项。切换底层时沿用原项目的停止与重建流程。
+3. 首页的“黑色灵动岛”独立开关，固定使用标准长度。关闭高刷不会主动结束灵动岛，关闭灵动岛也不会停止高刷。
+4. 快捷指令开关开启后，可使用 iMask 的原生“打开并一键 0.1pt”动作，也支持 `imask://startandhide`。
+5. 出现问题时，开启详细诊断、复现问题，再从诊断页导出日志。
 
-## 参考来源与参数
+## 实际行为与来源
 
-技术来源为 CaiWanFeng 的 PiP 示例与 Yoroin 的 GlobalRefresh-PiP。参考提交为 `1b62341c1d62308962fb3656192d6783631aa00c`，署名保存在 `NOTICE`，并随 App 打包，也可在诊断页访问项目链接。[CaiWanFeng/PiP](https://github.com/CaiWanFeng/PiP) · [Yoroin/GlobalRefresh-PiP](https://github.com/Yoroin/GlobalRefresh-PiP)
+高刷运行机制、后台策略与内置隐藏/共存适配来自原项目，首页及设置入口由 iMask 实现。`Vendor/GlobalRefresh` 中保留上游源码；`ViewController.swift` 仅替换原首页 SwiftUI 挂载与刷新入口，增加调用桥接。未创建上游的首页、设置、版本或教程页面。依赖的 SnapKit 以源码编入，保留 MIT 许可证，无付费 SDK。
 
-| 参数 | 数值或机制 |
-| --- | --- |
-| PiP 内容来源 | AVPictureInPictureVideoCallViewController / ContentSource |
-| 内容宽度 | 300 pt |
-| 最小化高度 | 0.1 pt |
-| 可见高度 | 44 pt |
-| PiP 内容更新 | 60fps CADisplayLink |
-| 内容动画周期 | 2.4 秒 |
-| App 前台刷新偏好 | 最高 120Hz，按屏幕上限截断 |
+原项目的隐藏/共存包含系统内部适配，例如 `_proxyControlsStyle` 和 PiP 内容类型切换，并非 Apple 公开保证的能力。相关检查与失败处理保留在 `PiPCoexistenceExperiment.swift`。普通 IPA 无法保证所有 App 和系统版本全局固定 120Hz，实际高刷、共存、熄屏与保活效果需真机确认。“本页帧率”只表示本 App 的前台回调采样。
 
-此版本采用公开 VideoCall 路径及上述参考参数，SwiftUI 界面和内容绘制单独实现。参考项目的完整方案还包含内部 PiP 控件与多 PiP 共存适配，相关系统依赖见其项目文档。后台模式使用 Xcode 的 Audio / AirPlay / Picture in Picture 能力对应配置，内容由 PiP 托管。
+黑色灵动岛仍是系统实时活动，系统可以显示其锁屏/通知容器；空内容不等于移除系统卡片。每次活动最长 8 小时，系统可能提前结束或改变显示，App 会在收到事件或返回前台时刷新状态。2.1 不再自动清理用户开启的实时活动。
 
-## 升级与日志
-
-2.0 从 1.x 升级时会结束旧的 iMask 实时活动，防止旧通知卡片继续显示。保留旧 `MaskAttributes` 类型用于读取、结束历史会话，主 App 的 `NSSupportsLiveActivities` 配置用于该迁移。
-
-诊断页可导出 `iMask-diagnostics.txt`，包含设备和系统版本、画中画状态、请求与实际内容尺寸、内容回调次数、前台帧率采样、启动错误及最近 256 条事件。日志保存在本机，导出由用户通过分享菜单完成。
+来源：[CaiWanFeng/PiP](https://github.com/CaiWanFeng/PiP)、[Yoroin/GlobalRefresh-PiP](https://github.com/Yoroin/GlobalRefresh-PiP)。署名及 SnapKit 许可证随 App 打包。
 
 ## 构建与签名
 
-在 Mac 的 Xcode 中打开 `iMask.xcodeproj`，选择 `iMask` scheme。将项目级 `IMASK_BUNDLE_IDENTIFIER` 改成你的团队可用 ID，在主 App 的 Signing & Capabilities 中选择 Team 并启用自动签名，即可运行或 Archive。
+在 Xcode 中打开 `iMask.xcodeproj`，选择 `iMask` scheme。项目级 `IMASK_BUNDLE_IDENTIFIER` 可改为你的团队 ID，主 App 和 iMaskWidget 都需要设置同一 Team。
 
 ```sh
 bash scripts/build-unsigned-ipa.sh
 ```
 
-该命令输出 `build/artifacts/iMask-unsigned.ipa` 及 SHA-256 校验文件。2.0 只包含主 App，签名工具应对这个主 App 使用有效的证书和匹配的描述文件。GitHub Actions 的 IPA 明确为未签名，需用 ESign 或 Xcode 等工具签名后安装。
+输出 `build/artifacts/iMask-unsigned.ipa` 和 SHA-256 文件。此 IPA 未签名，需要 ESign 等工具使用有效证书及匹配描述文件重新签名。必须同时签主 App 和 `PlugIns/iMaskWidget.appex`，不能删除扩展。Widget ID 为主 App ID 加 `.widget`。
 
-签名归档与导出示例，替换 Team ID 和 Bundle ID 后执行。
+签名导出可使用 `Config/ExportOptions-Debugging.plist`：
 
 ```sh
 xcodebuild archive -project iMask.xcodeproj -scheme iMask -configuration Release \
@@ -56,4 +54,4 @@ xcodebuild -exportArchive -archivePath build/iMask.xcarchive \
 
 ## 构建约定
 
-日常 `main` 更新只编译打包，安装包交由用户真机测试。只有用户明确要求推送到 `test` 才执行该推送，`test` 的 push 触发已维护的 UI/数据测试。`workflow_dispatch` 与 pull request 默认只构建。本次 2.0 交付只进行编译和打包校验，PiP 启动、隐藏、跨 App 高刷效果及新版 UI 均待真机验证。
+main 日常更新只编译打包。只有用户明确要求推送 test 后，test 的 push 才运行 UI/数据测试。本次只编译及校验安装包，真机效果交由用户确认；构建通过不代表已验证系统刷新率或后台存活。

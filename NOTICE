@@ -1,18 +1,19 @@
-iMask 2.0
+iMask 2.1
 
-The VideoCall Picture in Picture architecture and content-only profile reference
-the following projects and authors:
-
+High-refresh, PiP, background audio and coexistence implementation adapted from:
 Original project: https://github.com/CaiWanFeng/PiP
 Original author: CaiWanFeng
-
-Current reference project: https://github.com/Yoroin/GlobalRefresh-PiP
+Current project: https://github.com/Yoroin/GlobalRefresh-PiP
 Maintainer: Yoroin
 Reference commit: 1b62341c1d62308962fb3656192d6783631aa00c
 
-Referenced parameters include a 300-point content width, 0.1-point minimized
-height, 44-point compact height, 60 FPS content updates, and a 2.4-second
-content animation cycle. iMask has its own SwiftUI interface and rendering view.
+The original PiP controller and supporting implementation are retained under
+Vendor/GlobalRefresh. iMask replaces the home UI hosting seam, adds an interface
+adapter, and uses its own app identity for shortcut routing. The 2.1 UI and
+ActivityKit feature are maintained by iMask.
 
 Please retain attribution to CaiWanFeng and Yoroin and the corresponding links
 when modifying or distributing software based on these projects.
+
+SnapKit is distributed under the MIT License. Its copyright and permission notice
+are in the bundled LICENSE file and Vendor/SnapKit/LICENSE in this repository.

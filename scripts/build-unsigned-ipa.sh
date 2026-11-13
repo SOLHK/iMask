@@ -26,10 +26,19 @@ plist_value() {
 
 if [[ $(plist_value "$app" CADisableMinimumFrameDurationOnPhone) != true ]] ||
    [[ $(plist_value "$app" UIBackgroundModes:0) != audio ]] ||
-   [[ ! -f "$app/NOTICE" ]]; then
+   [[ ! -f "$app/NOTICE" || ! -f "$app/slience.mp3" || ! -f "$app/LICENSE" ]]; then
   printf 'Invalid high-refresh PiP configuration or missing attribution.\n' >&2
   exit 1
 fi
+
+widget="$app/PlugIns/iMaskWidget.appex"
+if [[ $(plist_value "$app" NSSupportsLiveActivities) != true ]] ||
+   [[ $(plist_value "$widget" NSExtension:NSExtensionPointIdentifier) != com.apple.widgetkit-extension ]] ||
+   [[ $(plist_value "$widget" CFBundleIdentifier) != "$(plist_value "$app" CFBundleIdentifier).widget" ]]; then
+  printf 'Invalid embedded Live Activity extension.\n' >&2
+  exit 1
+fi
+xcrun lipo "$widget/$(plist_value "$widget" CFBundleExecutable)" -verify_arch arm64
 
 executable="$app/$(plist_value "$app" CFBundleExecutable)"
 if [[ ! -x "$executable" ]] ||
@@ -39,7 +48,8 @@ if [[ ! -x "$executable" ]] ||
   exit 1
 fi
 
-if [[ -e "$app/embedded.mobileprovision" || -d "$app/_CodeSignature" ]]; then
+if [[ -e "$app/embedded.mobileprovision" || -d "$app/_CodeSignature" ||
+      -e "$widget/embedded.mobileprovision" || -d "$widget/_CodeSignature" ]]; then
   printf 'Unexpected provisioning profile or bundle signature in %s\n' "$app" >&2
   exit 1
 fi

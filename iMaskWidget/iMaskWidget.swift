@@ -1,0 +1,36 @@
+import ActivityKit
+import SwiftUI
+import WidgetKit
+
+@main
+struct IMaskWidget: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: MaskAttributes.self) { _ in
+            EmptyView()
+                .activityBackgroundTint(.clear)
+        } dynamicIsland: { _ in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.bottom) {
+                    Color.black
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .accessibilityLabel("iMask 黑色模式")
+                }
+            } compactLeading: {
+                blackTile(width: MaskWidth.standard.sideWidth)
+                    .accessibilityLabel("iMask 黑色模式")
+            } compactTrailing: {
+                blackTile(width: MaskWidth.standard.sideWidth)
+                    .accessibilityHidden(true)
+            } minimal: {
+                blackTile(width: 16)
+                    .accessibilityLabel("iMask 黑色模式")
+            }
+            .keylineTint(.black)
+        }
+    }
+
+    // Give the system real, opaque content in each slot, within compact layout constraints.
+    private func blackTile(width: CGFloat) -> some View {
+        Color.black.frame(width: width, height: 16)
+    }
+}
