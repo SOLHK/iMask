@@ -300,6 +300,8 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     private var pipContentTapGesture: UITapGestureRecognizer?
     private var videoCallContentController: UIViewController?
     var imaskDidChange: (() -> Void)?
+    var imaskDidAppear: (() -> Void)?
+    private var imaskStoppingForModeChange = false
     private var scrollDisplayLink: CADisplayLink?
     private var clockDisplayLink: CADisplayLink?
     private var fpsProbeDisplayLink: CADisplayLink?
@@ -746,7 +748,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         updateDiagnosticsPiPState()
         // iMask owns the home screen, so no upstream launch celebration is presented.
         enableDefaultPiPStoppedNotificationIfNeeded()
-        _ = performPendingShortcutActionIfNeeded(reason: "iMask appeared")
+        imaskDidAppear?()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -5654,6 +5656,12 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController,
         restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
     ) {
+        if imaskStoppingForModeChange {
+            shouldResignForegroundAfterPiPClose = false
+            restoreForegroundWindowsHiddenForPiPCloseIfNeeded()
+            completionHandler(false)
+            return
+        }
         if isClosingPiPFromCustomContentTap || isStoppingPiP || pipTransitionExpectedActive == false {
             DiagnosticsRuntimeState.recordUserAction("自定义悬浮窗关闭PiP")
             AppDebugLogger.log("PiP restore UI requested during expected close; keep app out of foreground")
@@ -6355,6 +6363,42 @@ extension ViewController {
     func imaskPreviewHeight(_ height: Double) { previewPiPHeight(CGFloat(height)) }
     func imaskSetRoute(_ route: PiPEngineRoute) { setPiPEngineRoute(route) }
     func imaskRefresh() { updateHomeView() }
+    func imaskRequestModeStop() {
+        imaskStoppingForModeChange = true
+        shouldResignForegroundAfterPiPClose = false
+        restoreForegroundWindowsHiddenForPiPCloseIfNeeded()
+        pendingPiPEngineRouteAfterStop = nil
+        shouldHidePiPAfterShortcutStart = false
+        cancelShortcutPiPStartRetry()
+        cancelShortcutPiPStopRetry()
+        cancelDelayedPiPHideCountdown(reason: "切换 iMask 功能")
+        pendingPiPStartWorkItem?.cancel()
+        pipStartTimeoutWorkItem?.cancel()
+        wantsPiPActive = false
+        updatePiPAutomaticStartPolicy()
+        if pipController?.isPictureInPictureActive == true { stopPiPSmoothly() }
+    }
+
+    func imaskFinishModeStop() -> Bool {
+        guard pipController?.isPictureInPictureActive != true, !isPiPTransitioning else { return false }
+        pendingPlayerItemReloadWorkItem?.cancel()
+        pendingPlayerItemReloadWorkItem = nil
+        stopDisplayLinks()
+        stopClockTimer()
+        BackgroundTaskManager.shared.forceStopAndDeactivate()
+        playerLayer?.player?.pause()
+        endBackgroundTask()
+        pipController?.delegate = nil
+        if hasPreparedPiPInfrastructure { teardownPiPInfrastructure() }
+        if isOwnPiPConfirmedActive || isPiPActiveForUI { finishPiPRuntimeSession() }
+        isOwnPiPConfirmedActive = false
+        isPiPActiveForUI = false
+        imaskStoppingForModeChange = false
+        updateHomeView()
+        return true
+    }
+
+    func imaskCancelModeStop() { imaskStoppingForModeChange = false }
     func imaskSetOption(_ option: String, _ enabled: Bool) {
         switch option {
         case "scrolling": if isScrollingEnabled != enabled { toggleScrolling() }

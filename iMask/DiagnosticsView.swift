@@ -4,6 +4,7 @@ import UIKit
 struct DiagnosticsView: View {
     @ObservedObject var session: RefreshSession
     @ObservedObject var mask: MaskSession
+    @ObservedObject var modes: DisplayModeSession
     @State private var report = ""
     @State private var export: ExportFile?
     @State private var exportError: String?
@@ -11,6 +12,7 @@ struct DiagnosticsView: View {
     var body: some View {
         Form {
             Section {
+                LabeledContent("当前模式", value: modes.selected.title)
                 LabeledContent("画中画状态", value: session.engine.title)
                 LabeledContent("悬浮窗", value: session.isMinimized ? "最小化" : "显示")
                 LabeledContent("保活模式", value: session.engine.policy.title)
@@ -77,7 +79,8 @@ struct DiagnosticsView: View {
     }
 
     private var combinedSnapshot: String {
-        session.diagnosticSnapshot + "\n\n" + mask.diagnosticSnapshot
+        "selectedDisplayMode=\(modes.selected.rawValue)\nmodeTransitioning=\(modes.isSwitching)\n"
+            + session.diagnosticSnapshot + "\n\n" + mask.diagnosticSnapshot
     }
 
     private struct ExportFile: Identifiable {

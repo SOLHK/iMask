@@ -92,8 +92,8 @@ jobs:
           assert len(reports) == 1, f'Expected one app diagnostic export, found {len(reports)}'
           shutil.copyfile(reports[0], 'build/iMask-diagnostics.txt')
           text = reports[0].read_text()
-          required = ['appVersion=2.1', 'engine=GlobalRefresh-PiP', 'deviceModel=',
-                      'globalDisplayRefreshRate=unavailable', 'selectedWidth=standard',
+          required = ['appVersion=2.2', 'engine=GlobalRefresh-PiP', 'deviceModel=',
+                      'globalDisplayRefreshRate=unavailable', 'selectedWidth=standard', 'selectedDisplayMode=',
                       'export.prepared']
           for entry in required:
               assert entry in text, f'Diagnostic export is missing {entry}'

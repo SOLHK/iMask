@@ -81,6 +81,7 @@
 		7C48408F22F911649E885741 /* UILayoutSupport+Extensions.swift */ = {isa = PBXBuildFile; fileRef = 4797743A3048DCACC490FB12 /* UILayoutSupport+Extensions.swift */; };
 		39704A5F141AE241FC777D6C /* slience.mp3 */ = {isa = PBXBuildFile; fileRef = 01E328A4C68030959FF29D9A /* slience.mp3 */; };
 		B13E791E9BEDBD84D810DF41 /* LICENSE */ = {isa = PBXBuildFile; fileRef = 69B5A6067B8FA172D2A4420D /* LICENSE */; };
+		8E3C0EF4F27F1395E070060F /* DisplayModeSession.swift */ = {isa = PBXBuildFile; fileRef = C19DEAC54464E5DCA380A50B /* DisplayModeSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -191,6 +192,7 @@
 		4797743A3048DCACC490FB12 /* UILayoutSupport+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Vendor/SnapKit/Source/UILayoutSupport+Extensions.swift"; sourceTree = SOURCE_ROOT; };
 		01E328A4C68030959FF29D9A /* slience.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Vendor/GlobalRefresh/BackgroundTaskManager/slience.mp3"; sourceTree = SOURCE_ROOT; };
 		69B5A6067B8FA172D2A4420D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Vendor/SnapKit/LICENSE"; sourceTree = SOURCE_ROOT; };
+		C19DEAC54464E5DCA380A50B /* DisplayModeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iMask/DisplayModeSession.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -233,6 +235,7 @@
 				B10000000000000000000001 /* iMaskApp.swift */,
 				B10000000000000000000002 /* ContentView.swift */,
 				B10000000000000000000003 /* MaskSession.swift */,
+				C19DEAC54464E5DCA380A50B /* DisplayModeSession.swift */,
 				A2D8C5A3735D62AF39DCA7AE /* RefreshSession.swift */,
 				67A6F8EFCC18F89629DB4C59 /* EngineSettingsView.swift */,
 				B1000000000000000000000E /* DiagnosticsLog.swift */,
@@ -467,6 +470,7 @@
 				A10000000000000000000001 /* iMaskApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000003 /* MaskSession.swift in Sources */,
+				8E3C0EF4F27F1395E070060F /* DisplayModeSession.swift */,
 				977A091C10FF73D97A6EE05C /* RefreshSession.swift */,
 				2345D215183FE8608A5D872E /* EngineSettingsView.swift */,
 				7C12757712ECBD544A50FA12 /* AdaptiveSheetPresentation.swift */,
@@ -570,12 +574,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				IMASK_BUNDLE_IDENTIFIER = com.imaskapp.iMask;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -592,11 +596,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				IMASK_BUNDLE_IDENTIFIER = com.imaskapp.iMask;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

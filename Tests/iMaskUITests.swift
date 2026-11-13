@@ -6,8 +6,8 @@ final class iMaskUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.buttons["toggleRefresh"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["高刷新率"].exists)
+        XCTAssertTrue(app.buttons["toggleMode"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["悬浮窗高刷"].exists)
 
         let mode = app.segmentedControls["windowMode"]
         mode.buttons["显示"].tap()

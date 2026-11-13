@@ -35,6 +35,7 @@ final class RefreshSession: NSObject, ObservableObject {
     let diagnostics = DiagnosticsLog()
     let controller = ViewController()
     let screenMaximum = UIScreen.main.maximumFramesPerSecond
+    var onShortcutRequested: (() -> Void)?
     private var foregroundLink: CADisplayLink?
     private lazy var displayTarget = ForegroundDisplayTarget(owner: self)
     private var isForeground = false
@@ -63,9 +64,10 @@ final class RefreshSession: NSObject, ObservableObject {
         controller.imaskDidChange = { [weak self] in
             DispatchQueue.main.async { self?.synchronize() }
         }
+        controller.imaskDidAppear = { [weak self] in self?.performPendingShortcut() }
         NotificationCenter.default.addObserver(self, selector: #selector(shortcutRequested),
             name: PiPShortcutActionCenter.didRequestActionNotification, object: nil)
-        diagnostics.record("app.launched", "version=2.1; engine=GlobalRefresh-PiP; upstream=1b62341")
+        diagnostics.record("app.launched", "version=2.2; engine=GlobalRefresh-PiP; upstream=1b62341")
     }
 
     deinit {
@@ -156,9 +158,47 @@ final class RefreshSession: NSObject, ObservableObject {
     }
 
     private func performPendingShortcut() {
+        onShortcutRequested?()
+    }
+
+    func runPendingShortcut() {
         guard controller.isViewLoaded, controller.view.window != nil else { return }
         _ = controller.performPendingShortcutActionIfNeeded(reason: "iMask")
         synchronize()
+    }
+
+    func waitForSourceView() async -> Bool {
+        for _ in 0..<40 {
+            if controller.isViewLoaded, controller.view.window != nil, !controller.view.bounds.isEmpty { return true }
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+        }
+        return false
+    }
+
+    func stopAndReleaseForModeChange() async -> Bool {
+        // Let any already-submitted AVKit start finish before requesting its matching stop.
+        for _ in 0..<150 {
+            refresh()
+            if !engine.transitioning { break }
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
+        }
+        guard !engine.transitioning else {
+            diagnostics.record("mode.pipTransitionTimeout")
+            return false
+        }
+        controller.imaskRequestModeStop()
+        for _ in 0..<150 {
+            refresh()
+            if controller.imaskFinishModeStop() {
+                synchronize()
+                diagnostics.record("mode.pipReleased", "pip=false; audio=\(BackgroundTaskManager.shared.isPlaying)")
+                return true
+            }
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { break }
+        }
+        controller.imaskCancelModeStop()
+        diagnostics.record("mode.pipStopTimeout", "active=\(engine.active); transitioning=\(engine.transitioning)")
+        return false
     }
 
     func open(_ url: URL) {
@@ -172,7 +212,11 @@ final class RefreshSession: NSObject, ObservableObject {
     }
 
     private func synchronize() {
-        engine = controller.imaskState
+        let actual = controller.imaskState
+        if actual.active != engine.active || actual.transitioning != engine.transitioning {
+            diagnostics.record("pip.stateChanged", "active=\(actual.active); transitioning=\(actual.transitioning)")
+        }
+        engine = actual
         isMinimized = engine.height <= engine.minimumHeight + 0.01
         updateForegroundProbe()
     }

@@ -130,7 +130,7 @@ final class MaskSession: ObservableObject {
     func stop() async {
         guard !isBusy else { return }
         refresh(reason: "stop")
-        guard status.isRunning else { return }
+        guard Activity<MaskAttributes>.activities.contains(where: { $0.activityState != .dismissed }) else { return }
 
         isStopping = true
         errorMessage = nil
