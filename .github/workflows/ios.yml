@@ -42,7 +42,7 @@ jobs:
           retention-days: 14
 
   simulator:
-    name: Live Activity UI tests
+    name: UI and data tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     runs-on: ${{ inputs.simulator_runner || 'xcode-27' }}
     timeout-minutes: 25
@@ -51,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Test starting, restoring and ending a Live Activity
+      - name: Run the requested UI and data tests
         shell: bash
         run: |
           if [[ -d /Applications/Xcode_27.2.app/Contents/Developer ]]; then
@@ -92,14 +92,12 @@ jobs:
           assert len(reports) == 1, f'Expected one app diagnostic export, found {len(reports)}'
           shutil.copyfile(reports[0], 'build/iMask-diagnostics.txt')
           text = reports[0].read_text()
-          required = ['appVersion=1.3', 'selectedWidth=standard', 'deviceModel=',
-                      'lockScreenContent=emptyView',
-                      'widgetBundlePresent=true', 'activity.started', 'activity.widthUpdated',
-                      'activity.stopped', 'export.prepared', 'from=standard; to=wide',
-                      'from=wide; to=narrow', 'from=narrow; to=standard']
+          required = ['appVersion=2.0', 'engine=publicVideoCall', 'deviceModel=',
+                      'globalDisplayRefreshRate=unavailable', 'contentPreferredFPS=60',
+                      'export.prepared']
           for entry in required:
               assert entry in text, f'Diagnostic export is missing {entry}'
-          print('PASS: exported diagnostic report contains actual lifecycle and width changes')
+          print('PASS: exported diagnostic report contains PiP configuration and device data')
           PY
 
       - name: Compress Xcode test result bundle

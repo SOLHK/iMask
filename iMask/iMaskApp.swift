@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 struct IMaskApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var session = MaskSession()
+    @StateObject private var session = RefreshSession()
 
     var body: some Scene {
         WindowGroup {

@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class MaskDataTests: XCTestCase {
-    func testRestoresVersionOneContentAndAllWidths() throws {
+    func testDecodesLegacyActivityContentForCleanup() throws {
         let oldState = try JSONDecoder().decode(MaskAttributes.ContentState.self, from: Data("{}".utf8))
         XCTAssertEqual(oldState.effectiveWidth, .standard)
         for width in MaskWidth.allCases {
@@ -23,9 +23,9 @@ final class MaskDataTests: XCTestCase {
         XCTAssertEqual(restored.entries.count, DiagnosticsLog.maximumEntries)
         XCTAssertEqual(restored.entries.first?.event, "event.4")
         XCTAssertEqual(restored.entries.last?.event, "event.259")
-        let url = try restored.export(snapshot: "selectedWidth=wide")
+        let url = try restored.export(snapshot: "pipActive=true")
         let text = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(text.contains("selectedWidth=wide"))
+        XCTAssertTrue(text.contains("pipActive=true"))
         XCTAssertTrue(text.contains("export.prepared"))
         XCTAssertTrue(text.contains("event.259"))
     }

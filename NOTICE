@@ -1,0 +1,18 @@
+iMask 2.0
+
+The VideoCall Picture in Picture architecture and content-only profile reference
+the following projects and authors:
+
+Original project: https://github.com/CaiWanFeng/PiP
+Original author: CaiWanFeng
+
+Current reference project: https://github.com/Yoroin/GlobalRefresh-PiP
+Maintainer: Yoroin
+Reference commit: 1b62341c1d62308962fb3656192d6783631aa00c
+
+Referenced parameters include a 300-point content width, 0.1-point minimized
+height, 44-point compact height, 60 FPS content updates, and a 2.4-second
+content animation cycle. iMask has its own SwiftUI interface and rendering view.
+
+Please retain attribution to CaiWanFeng and Yoroin and the corresponding links
+when modifying or distributing software based on these projects.

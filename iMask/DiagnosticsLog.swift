@@ -54,14 +54,14 @@ final class DiagnosticsLog {
         }.joined(separator: "\n")
         return """
         iMask 诊断报告
-        schemaVersion=1
+        schemaVersion=2
         generatedAt=\(Date.now.ISO8601Format())
 
         \(snapshot)
 
         诊断范围
-        活动状态来自 ActivityKit，运行中代表系统会话有效。
-        当前可见性、系统最终宽高和结束原因均未由公开 API 提供。
+        画中画状态来自 AVKit，本页帧率为本 App 前台的 CADisplayLink 回调采样。
+        跨 App 的屏幕刷新率无法由本进程直接读取，需结合真机效果判断。
         日志仅包含本 App 的事件、设备类型和运行环境，保存在本机。
         appStorage=\(storageIssue ?? "正常")
 

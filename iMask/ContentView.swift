@@ -1,121 +1,126 @@
 import SwiftUI
-import UIKit
 
 struct ContentView: View {
-    @ObservedObject var session: MaskSession
-    @Environment(\.openURL) private var openURL
+    @ObservedObject var session: RefreshSession
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Capsule()
-                        .fill(.black)
-                        .frame(width: session.status.isRunning ? 108 + 2 * session.selectedWidth.sideWidth : 96, height: 36)
-                        .frame(maxWidth: .infinity, minHeight: 102)
-                        .background(Color(uiColor: .secondarySystemFill), in: RoundedRectangle(cornerRadius: 12))
-                        .padding(.vertical, 8)
-                        .accessibilityHidden(true)
-                } header: {
-                    Text("效果预览")
-                } footer: {
-                    Text("示意图。实际宽度、高度和圆角由 iOS 决定。")
-                }
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 12) {
+                        Text("高刷新率")
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(.secondary)
 
-                Section {
-                    LabeledContent {
-                        Text(statusTitle)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("120")
+                                .font(.system(size: 112, weight: .light, design: .rounded))
+                                .tracking(-5)
+                            Text("Hz")
+                                .font(.title2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("目标刷新率 120 赫兹")
+
+                        Text("目标刷新率")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        RefreshPreview(session: session)
+                            .frame(maxWidth: 300)
+                            .frame(height: 44)
+                            .padding(.vertical, 16)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: session.isRunning ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(session.isRunning ? Color.blue : Color.secondary)
+                            Text(session.isSuspended ? "画中画已暂停" : session.phase.title)
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .accessibilityIdentifier("refreshStatus")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 20)
+
+                    Button {
+                        if session.canStop { session.stop() } else { session.start() }
                     } label: {
-                        Text("实时活动")
+                        Label(session.canStop ? "停止高刷" : "开启高刷",
+                              systemImage: session.canStop ? "stop.fill" : "power")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 46)
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("实时活动")
-                    .accessibilityValue(Text(statusTitle))
-                    .accessibilityIdentifier("maskStatus")
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .disabled(session.phase == .stopping)
+                    .accessibilityIdentifier("toggleRefresh")
 
-                    if session.status.isRunning {
-                        Button("关闭黑色模式", role: .destructive) {
-                            Task { await session.stop() }
+                    if let message = session.message {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    VStack(spacing: 18) {
+                        HStack {
+                            Text("悬浮窗").font(.headline)
+                            Spacer()
+                            Picker("悬浮窗", selection: Binding(
+                                get: { session.isMinimized },
+                                set: { session.setMinimized($0) }
+                            )) {
+                                Text("最小化").tag(true)
+                                Text("显示").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 200)
+                            .disabled(session.isTransitioning)
+                            .accessibilityIdentifier("windowMode")
                         }
-                        .disabled(session.isBusy)
-                        .accessibilityIdentifier("stopMask")
-                    } else {
-                        Button("开启黑色模式") { session.start() }
-                            .disabled(!session.isEnabled || session.isBusy)
-                            .accessibilityIdentifier("startMask")
-                    }
-
-                    if !session.isEnabled, let url = URL(string: UIApplication.openSettingsURLString) {
-                        Button("打开系统设置") { openURL(url) }
-                    }
-                } footer: {
-                    Text(session.errorMessage ?? statusDetail)
-                }
-
-                Section {
-                    Picker("宽度微调", selection: Binding(
-                        get: { session.selectedWidth },
-                        set: { width in Task { await session.setWidth(width) } }
-                    )) {
-                        ForEach(MaskWidth.allCases) { width in
-                            Text(width.title).tag(width)
+                        Divider()
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("屏幕上限").font(.caption).foregroundStyle(.secondary)
+                                Text("\(session.screenMaximum) Hz")
+                                    .font(.title3.weight(.semibold)).monospacedDigit()
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 6) {
+                                Text("本页帧率").font(.caption).foregroundStyle(.secondary)
+                                Text(session.foregroundFPS.map { String(format: "%.0f FPS", $0) } ?? "—")
+                                    .font(.title3.weight(.semibold)).monospacedDigit()
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .disabled(session.isBusy)
-                    .accessibilityIdentifier("maskWidth")
-                } header: {
-                    Text("宽度微调")
-                } footer: {
-                    Text("标准比 1.0 版更长。切换后返回桌面查看效果，最终尺寸由 iOS 决定。")
-                }
+                    .padding(22)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
 
-                Section {
-                    NavigationLink("诊断与日志") {
+                    NavigationLink {
                         DiagnosticsView(session: session)
+                    } label: {
+                        HStack {
+                            Label("诊断与日志", systemImage: "waveform.path.ecg")
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 12)
                     }
                     .accessibilityIdentifier("openDiagnostics")
                 }
-
-                Section("显示限制") {
-                    Text("在配备灵动岛的 iPhone 上，桌面和其他 App 可显示黑色实时活动。其他活动、系统提示和显示环境会影响它是否出现。")
-                    Text("每次最多持续 8 小时。系统结束后，可以回到 iMask 重新开启。")
-                    Text("轻点灵动岛中的 iMask 活动会打开本 App，长按会展开，均由 iOS 处理。")
-                }
-                .font(.subheadline)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .frame(maxWidth: 540)
+                .frame(maxWidth: .infinity)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("iMask")
-        }
-    }
-
-    private var statusTitle: String {
-        if session.isStopping { return "正在关闭" }
-        switch session.status {
-        case .off: return session.isEnabled ? "未开启" : "不可用"
-        case .running: return "运行中"
-        case .stopped: return "已关闭"
-        case .ended: return "活动已结束"
-        }
-    }
-
-    private var statusDetail: String {
-        if !session.isEnabled && !session.status.isRunning {
-            return session.status == .ended
-                ? "上次活动已结束。请在系统设置中允许实时活动后再开启。"
-                : "请检查系统设置中是否允许 iMask 使用实时活动。"
-        }
-
-        switch session.status {
-        case .off:
-            return "开启后可返回桌面，查看 iOS 如何显示活动。"
-        case .running(let startedAt):
-            let limit = startedAt.addingTimeInterval(8 * 60 * 60)
-                .formatted(.dateTime.month().day().hour().minute().locale(Locale(identifier: "zh_CN")))
-            return "本次最长可运行至\(limit)。运行状态由 ActivityKit 提供，实际是否显示由 iOS 决定。"
-        case .stopped:
-            return "已手动关闭本次实时活动。"
-        case .ended:
-            return "上次活动已结束或被移除。可以再次开启。"
+            .navigationBarTitleDisplayMode(.inline)
+            .tint(.blue)
         }
     }
 }

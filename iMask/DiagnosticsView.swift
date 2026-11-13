@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct DiagnosticsView: View {
-    @ObservedObject var session: MaskSession
+    @ObservedObject var session: RefreshSession
     @State private var report = ""
     @State private var export: ExportFile?
     @State private var exportError: String?
@@ -10,12 +10,12 @@ struct DiagnosticsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("实时活动权限", value: session.isEnabled ? "已允许" : "不可用")
-                LabeledContent("宽度设置", value: session.selectedWidth.title)
+                LabeledContent("画中画状态", value: session.phase.title)
+                LabeledContent("悬浮窗", value: session.isMinimized ? "最小化" : "显示")
                 Button("检查当前状态") { refreshReport() }
                     .accessibilityIdentifier("refreshDiagnostics")
                 Button("导出诊断日志") {
-                    session.refresh(reason: "export")
+                    session.refresh()
                     do {
                         let file = try session.diagnostics.export(snapshot: session.diagnosticSnapshot)
                         report = session.diagnostics.report(snapshot: session.diagnosticSnapshot)
@@ -26,7 +26,7 @@ struct DiagnosticsView: View {
                 }
                 .accessibilityIdentifier("exportDiagnostics")
             } footer: {
-                Text("导出文本包含设备类型、系统版本、显示参数、宽度设置和最近 256 条事件。可通过分享菜单发送或存到“文件”。")
+                Text("导出设备信息、画中画状态、帧率采样和最近 256 条事件。日志保存在本机。")
             }
 
             Section {
@@ -36,8 +36,11 @@ struct DiagnosticsView: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("diagnosticReport")
                 }
-            } footer: {
-                Text("日志保存在本机，重启 App 后保留。系统未提供灵动岛实际像素尺寸和当前可见性的查询接口。")
+            }
+
+            Section("技术来源") {
+                Link("GlobalRefresh-PiP · Yoroin", destination: URL(string: "https://github.com/Yoroin/GlobalRefresh-PiP")!)
+                Link("PiP · CaiWanFeng", destination: URL(string: "https://github.com/CaiWanFeng/PiP")!)
             }
         }
         .navigationTitle("诊断与日志")
@@ -64,7 +67,7 @@ struct DiagnosticsView: View {
     }
 
     private func refreshReport() {
-        session.refresh(reason: "diagnostics")
+        session.refresh()
         report = session.diagnostics.report(snapshot: session.diagnosticSnapshot)
     }
 
