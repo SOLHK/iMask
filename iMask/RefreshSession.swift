@@ -226,30 +226,38 @@ final class RefreshSession: NSObject, ObservableObject, AVPictureInPictureContro
         hasRequestedStart = false
     }
 
-    func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        guard controller === pictureInPictureController else { return }
-        guard wantsRunning else { pictureInPictureController.stopPictureInPicture(); return }
-        transitionTask?.cancel()
-        phase = .running
-        startedAt = .now
-        diagnostics.record("pip.started", "active=\(pictureInPictureController.isPictureInPictureActive); size=\(requestedSize)")
+    nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        Task { @MainActor [weak self] in
+            guard let self, self.controller === pictureInPictureController else { return }
+            guard self.wantsRunning else { pictureInPictureController.stopPictureInPicture(); return }
+            self.transitionTask?.cancel()
+            self.phase = .running
+            self.startedAt = .now
+            self.diagnostics.record("pip.started", "active=\(pictureInPictureController.isPictureInPictureActive); size=\(self.requestedSize)")
+        }
     }
 
-    func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        guard controller === pictureInPictureController else { return }
-        diagnostics.record("pip.didStop", "userRequested=\(!wantsRunning)")
-        finishStop()
+    nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        Task { @MainActor [weak self] in
+            guard let self, self.controller === pictureInPictureController else { return }
+            self.diagnostics.record("pip.didStop", "userRequested=\(!self.wantsRunning)")
+            self.finishStop()
+        }
     }
 
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
-        guard controller === pictureInPictureController else { return }
-        diagnostics.recordError("pip.startFailed", error)
-        fail("画中画开启失败，可在诊断中查看系统原因。", event: "pip.failure")
+    nonisolated func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
+        Task { @MainActor [weak self] in
+            guard let self, self.controller === pictureInPictureController else { return }
+            self.diagnostics.recordError("pip.startFailed", error)
+            self.fail("画中画开启失败，可在诊断中查看系统原因。", event: "pip.failure")
+        }
     }
 
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
+    nonisolated func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
                                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        completionHandler(sourceView?.window != nil)
+        Task { @MainActor [weak self] in
+            completionHandler(self?.sourceView?.window != nil)
+        }
     }
 
     func sceneChanged(_ phase: ScenePhase) {
