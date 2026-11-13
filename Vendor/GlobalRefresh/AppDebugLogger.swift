@@ -868,7 +868,7 @@ enum PerformanceDiagnosticsLogger {
     }
 
     static func lightweightProcessSnapshot() -> LightweightProcessSnapshot {
-        let threadSnapshot = threadUsageSnapshot()
+        let threadSnapshot = threadUsageSnapshot(includeThreadDetails: false)
         return LightweightProcessSnapshot(
             physicalFootprintMB: physicalFootprintMB(),
             threadCount: threadSnapshot.threadCount
@@ -993,7 +993,7 @@ enum PerformanceDiagnosticsLogger {
         let haltedThreadCount: Int
     }
 
-    private static func threadUsageSnapshot() -> ThreadUsageSnapshot {
+    private static func threadUsageSnapshot(includeThreadDetails: Bool = true) -> ThreadUsageSnapshot {
         var threadList: thread_act_array_t?
         var threadCount = mach_msg_type_number_t(0)
         let result = task_threads(mach_task_self_, &threadList, &threadCount)
@@ -1011,6 +1011,10 @@ enum PerformanceDiagnosticsLogger {
         }
 
         defer {
+            // task_threads returns a send right for each thread as well as the array.
+            for index in 0..<Int(threadCount) {
+                mach_port_deallocate(mach_task_self_, threadList[index])
+            }
             let size = vm_size_t(Int(threadCount) * MemoryLayout<thread_t>.stride)
             vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threadList)), size)
         }
@@ -1023,33 +1027,35 @@ enum PerformanceDiagnosticsLogger {
         var uninterruptibleCount = 0
         var haltedCount = 0
 
-        for index in 0..<Int(threadCount) {
-            var threadInfo = thread_basic_info()
-            var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
-            let infoResult = withUnsafeMutablePointer(to: &threadInfo) { pointer in
-                pointer.withMemoryRebound(to: integer_t.self, capacity: Int(threadInfoCount)) {
-                    thread_info(threadList[index], thread_flavor_t(THREAD_BASIC_INFO), $0, &threadInfoCount)
+        if includeThreadDetails {
+            for index in 0..<Int(threadCount) {
+                var threadInfo = thread_basic_info()
+                var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
+                let infoResult = withUnsafeMutablePointer(to: &threadInfo) { pointer in
+                    pointer.withMemoryRebound(to: integer_t.self, capacity: Int(threadInfoCount)) {
+                        thread_info(threadList[index], thread_flavor_t(THREAD_BASIC_INFO), $0, &threadInfoCount)
+                    }
                 }
-            }
 
-            if infoResult == KERN_SUCCESS, (threadInfo.flags & TH_FLAGS_IDLE) == 0 {
-                let usage = Double(threadInfo.cpu_usage) / Double(TH_USAGE_SCALE) * 100.0
-                totalUsage += usage
-                maxUsage = max(maxUsage, usage)
+                if infoResult == KERN_SUCCESS, (threadInfo.flags & TH_FLAGS_IDLE) == 0 {
+                    let usage = Double(threadInfo.cpu_usage) / Double(TH_USAGE_SCALE) * 100.0
+                    totalUsage += usage
+                    maxUsage = max(maxUsage, usage)
 
-                switch Int32(threadInfo.run_state) {
-                case TH_STATE_RUNNING:
-                    runningCount += 1
-                case TH_STATE_WAITING:
-                    waitingCount += 1
-                case TH_STATE_STOPPED:
-                    stoppedCount += 1
-                case TH_STATE_UNINTERRUPTIBLE:
-                    uninterruptibleCount += 1
-                case TH_STATE_HALTED:
-                    haltedCount += 1
-                default:
-                    break
+                    switch Int32(threadInfo.run_state) {
+                    case TH_STATE_RUNNING:
+                        runningCount += 1
+                    case TH_STATE_WAITING:
+                        waitingCount += 1
+                    case TH_STATE_STOPPED:
+                        stoppedCount += 1
+                    case TH_STATE_UNINTERRUPTIBLE:
+                        uninterruptibleCount += 1
+                    case TH_STATE_HALTED:
+                        haltedCount += 1
+                    default:
+                        break
+                    }
                 }
             }
         }

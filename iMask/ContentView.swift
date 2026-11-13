@@ -22,15 +22,13 @@ struct ContentView: View {
 
                     if modes.selected == .floatingWindow {
                         floatingWindowHeader
+                        RefreshPreview(session: session)
+                            .frame(maxWidth: 300)
+                            .frame(height: 100)
+                            .clipped()
                     } else {
                         islandHeader
                     }
-
-                    // Keep an attached source view for the minimized driver in Island mode.
-                    RefreshPreview(session: session)
-                        .frame(maxWidth: 300)
-                        .frame(height: 100)
-                        .clipped()
 
                     HStack(spacing: 8) {
                         if busy {
@@ -68,20 +66,6 @@ struct ContentView: View {
                     } else {
                         Text(mask.isEnabled ? (running ? "已启动，返回桌面查看灵动岛" : "标准长度 · 纯黑显示") : "请在系统设置中允许 iMask 实时活动")
                             .font(.subheadline).foregroundStyle(.secondary)
-                        VStack(spacing: 12) {
-                            Toggle("同时开启画中画高刷", isOn: Binding(
-                                get: { modes.islandRefreshEnabled }, set: modes.setIslandRefreshEnabled
-                            ))
-                            .disabled(busy)
-                            LabeledContent("高刷驱动", value: session.isRunning ? "运行中" : "已关闭")
-                            Text("若桌面看不到灵动岛，可关闭高刷再查看。")
-                                .font(.caption).foregroundStyle(.secondary)
-                            if mask.status.isRunning && modes.islandRefreshEnabled && !session.isRunning {
-                                Button("重试高刷驱动") { modes.setIslandRefreshEnabled(true) }.disabled(busy)
-                            }
-                        }
-                        .padding(22)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
                     }
 
                     NavigationLink {

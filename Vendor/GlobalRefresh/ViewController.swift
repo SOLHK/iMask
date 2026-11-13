@@ -1369,10 +1369,13 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     private func startPiPRuntimeTimerIfNeeded() {
-        guard pipRuntimeTimer == nil else { return }
-        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+        let interval: TimeInterval = UIApplication.shared.applicationState == .active ? 1 : 10
+        guard pipRuntimeTimer?.timeInterval != interval else { return }
+        stopPiPRuntimeTimer()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.tickPiPRuntimeTimer()
         }
+        timer.tolerance = interval * 0.2
         RunLoop.main.add(timer, forMode: .common)
         pipRuntimeTimer = timer
     }
@@ -1390,8 +1393,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         pipRuntimeDuration = max(0, Date().timeIntervalSince(pipRuntimeStartedAt))
         recordPiPRuntimeHealthCheckpoint()
         guard UIApplication.shared.applicationState == .active,
-              isViewLoaded, view.window != nil,
-              tabBarController?.selectedViewController === self else { return }
+              isViewLoaded, view.window != nil else { return }
         updateHomeView()
     }
 
@@ -5279,6 +5281,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func handleEnterForeground() {
+        syncPiPRuntimeTimerState()
         AppDebugLogger.console("进入前台")
         startSystemAppearanceFollowTimerIfNeeded()
         if shouldResignForegroundAfterPiPClose {
@@ -5323,6 +5326,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func handleDidBecomeActive() {
+        syncPiPRuntimeTimerState()
         if UIApplication.shared.isProtectedDataAvailable {
             deactivateLockScreenAudioBoostIfNeeded(reason: "App已活跃")
         }
@@ -5333,6 +5337,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func handleEnterBackground() {
+        syncPiPRuntimeTimerState()
         AppDebugLogger.console("进入后台")
         stopSystemAppearanceFollowTimer()
         if shouldResignForegroundAfterPiPClose {
@@ -6356,12 +6361,8 @@ extension ViewController {
         )
     }
     var imaskDiagnostics: String { pipSurfaceDiagnosticsText + "\n" + displaySleepDiagnosticsText }
-    var imaskIslandDriverReady: Bool {
-        pipController?.isPictureInPictureActive == true && isHiddenReferenceSession
-            && clampedPiPHeight <= 0.11 && pipCoexistenceExperiment.hasSubmittedPostStartTransition
-    }
-    func imaskApplyProfile(_ profile: FloatingWindowProfile) {
-        guard pipController?.isPictureInPictureActive != true, !isPiPTransitioning else { return }
+    func imaskApplyProfile(_ profile: FloatingWindowProfile) -> Bool {
+        guard pipController?.isPictureInPictureActive != true, !isPiPTransitioning else { return false }
         KeepAlivePolicy.current = KeepAlivePolicy(rawValue: profile.policy) ?? .pipOnly
         pipEngineRoute = PiPEngineRoute(rawValue: profile.route) ?? .videoCall
         isExtremeSilentModeEnabled = profile.extremeSilent
@@ -6370,6 +6371,7 @@ extension ViewController {
         isScrollingEnabled = profile.scrolling
         commitPiPHeight(CGFloat(profile.height))
         updateHomeView()
+        return true
     }
     func imaskStart(hidden: Bool) {
         guard !isPiPTransitioning, pipController?.isPictureInPictureActive != true else { return }

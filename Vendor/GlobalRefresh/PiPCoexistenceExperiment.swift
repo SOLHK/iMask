@@ -271,11 +271,7 @@ final class PiPHiddenReferenceRenderView: UIView {
 final class PiPCoexistenceExperiment {
     static let preferenceKey = "pip.experiment.coexistenceProvider6"
     private static var associationKey: UInt8 = 0
-    private static var traceKey: UInt8 = 0
-    private static var traceHooks: Set<String> = []
-    private static let threadTraceKey = "com.yoroin.pip.contentTypeTrace.context"
     private static var providers: [String: IMP] = [:]
-    private typealias VoidMethod = @convention(c) (AnyObject, Selector) -> Void
     private typealias ObjectGetter = @convention(c) (AnyObject, Selector) -> Unmanaged<AnyObject>?
     private typealias IntegerGetter = @convention(c) (AnyObject, Selector) -> Int
     private typealias IntegerSetter = @convention(c) (AnyObject, Selector, Int) -> Void
@@ -287,12 +283,10 @@ final class PiPCoexistenceExperiment {
         weak var proxy: NSObject?
         private let lock = NSLock()
         private var calls = 0
-        private var traceCounts: [String: Int] = [:]
-        private var tracingActive = true
         private var requestedType = 6
         let followsPlaybackPhase: Bool
         var isObtainingProxy = false
-        let traceID = UUID().uuidString
+        let sessionID = UUID().uuidString
         init(proxy: NSObject?, followsPlaybackPhase: Bool = false) {
             self.proxy = proxy
             self.followsPlaybackPhase = followsPlaybackPhase
@@ -319,22 +313,6 @@ final class PiPCoexistenceExperiment {
             defer { lock.unlock() }
             return calls
         }
-        func trace(_ event: String, details: String, limit: Int = 6) {
-            guard AppDebugLogger.isDebugModeEnabled else { return }
-            lock.lock()
-            let count = traceCounts[event, default: 0]
-            let allowed = tracingActive && count < limit
-            if allowed { traceCounts[event] = count + 1 }
-            lock.unlock()
-            guard allowed else { return }
-            let stack = Thread.callStackSymbols.prefix(18).joined(separator: " <- ")
-            AppDebugLogger.logCritical("PiP WRITE-TRACE session=\(traceID) [\(event) #\(count + 1)]: \(details); threadMain=\(Thread.isMainThread); stack=\(stack)")
-        }
-        func endTracing() {
-            lock.lock()
-            tracingActive = false
-            lock.unlock()
-        }
     }
 
     static let postStartTransitionDelay: TimeInterval = 1
@@ -346,7 +324,6 @@ final class PiPCoexistenceExperiment {
     private var installationID: UUID?
     private var postStartScheduled = false
     private var postStartSubmitted = false
-    var hasSubmittedPostStartTransition: Bool { postStartSubmitted }
     private var referenceStartupSubmitted = false
     private static var isRequested: Bool {
         PiPHiddenReferenceMode.isEnabled && PiPHiddenReferenceMode.suppressesRefreshDriver
@@ -391,14 +368,12 @@ final class PiPCoexistenceExperiment {
         guard let candidateProxy,
               prepared.proxy == nil || prepared.proxy === candidateProxy else {
             objc_setAssociatedObject(candidate, &Self.associationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            prepared.endTracing()
             return false
         }
         prepared.proxy = candidateProxy
         let succeeded = install(adapter: candidate, proxy: candidateProxy, prepared: prepared)
         if !succeeded {
             objc_setAssociatedObject(candidate, &Self.associationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            prepared.endTracing()
         }
         if succeeded {
             AppDebugLogger.logCritical("Hidden reference EARLY provider prepared before controls/automatic-start: initialType=4; provider follows 4->6 after startup; \(diagnosticDescription). Cold animation, controls and independent 120Hz require device validation.")
@@ -409,7 +384,7 @@ final class PiPCoexistenceExperiment {
     var diagnosticDescription: String {
         guard let adapter, let proxy, let configuration else { return "coexistenceProvider=false" }
         let delegate = Self.object(proxy, selector: "delegate")
-        return "coexistenceProvider=true, variant=post-start-once-\(Self.postStartTransitionDelay)s, traceSession=\(configuration.traceID), providerCalls=\(configuration.callCount), postStartScheduled=\(postStartScheduled), postStartSubmitted=\(postStartSubmitted), requestedContentType=6, localContentType=\(Self.contentType(of: proxy).map(String.init) ?? "unknown"), adapterClass=\(NSStringFromClass(type(of: adapter))), proxyDelegateMatches=\(delegate === adapter)"
+        return "coexistenceProvider=true, variant=post-start-once-\(Self.postStartTransitionDelay)s, session=\(configuration.sessionID), providerCalls=\(configuration.callCount), postStartScheduled=\(postStartScheduled), postStartSubmitted=\(postStartSubmitted), requestedContentType=6, localContentType=\(Self.contentType(of: proxy).map(String.init) ?? "unknown"), adapterClass=\(NSStringFromClass(type(of: adapter))), proxyDelegateMatches=\(delegate === adapter)"
     }
 
     @discardableResult
@@ -443,7 +418,6 @@ final class PiPCoexistenceExperiment {
         adapter = candidate
         proxy = candidateProxy
         objc_setAssociatedObject(candidate, &Self.associationKey, configuration, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        Self.installWriteTrace(adapter: candidate, proxy: candidateProxy, state: state, configuration: configuration)
         let setterIMP = unsafeBitCast(method_getImplementation(setter), to: IntegerSetter.self)
         let mutation: StateMutation = { [weak self, weak candidate] currentState in
             guard self?.installationID == token, let candidate,
@@ -453,12 +427,6 @@ final class PiPCoexistenceExperiment {
         }
         unsafeBitCast(method_getImplementation(update), to: StateUpdater.self)(candidateProxy, updateSelector, mutation)
         AppDebugLogger.logCritical("PiP class-provider beta prepared BEFORE start: no isa change; \(diagnosticDescription). Remote acceptance, coexistence and 120Hz unverified; source/size/audio/frame-rate unchanged.")
-        for delay in [0.25, 0.75, 2.0, 3.8] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.installationID == token else { return }
-                self.checkpoint("startup +\(delay)s")
-            }
-        }
         return true
     }
 
@@ -519,12 +487,6 @@ final class PiPCoexistenceExperiment {
                 return
             }
             self.submitPostStartContentType(token: token, isStillActive: isStillActive)
-            for offset in [0.25, 0.75, 2.0, 6.0] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + offset) { [weak self] in
-                    guard let self, self.installationID == token else { return }
-                    self.checkpoint("post-start submission +\(offset)s; controllerEligible=\(isStillActive())")
-                }
-            }
         }
     }
 
@@ -551,7 +513,7 @@ final class PiPCoexistenceExperiment {
                   let setter = Self.method(stateClass, selector: setterSelector, result: "v", arguments: ["q"]) else { return }
             configuration.setRequestedType(6)
             unsafeBitCast(method_getImplementation(setter), to: IntegerSetter.self)(currentState, setterSelector, 6)
-            AppDebugLogger.logCritical("PiP post-start state mutation APPLIED: traceSession=\(configuration.traceID), value=6; remote acceptance unverified")
+            AppDebugLogger.logCritical("PiP post-start state mutation APPLIED: session=\(configuration.sessionID), value=6; remote acceptance unverified")
         }
         unsafeBitCast(method_getImplementation(update), to: StateUpdater.self)(proxy, updateSelector, mutation)
         checkpoint("post-start submission RETURNED; remote acceptance unverified")
@@ -570,15 +532,11 @@ final class PiPCoexistenceExperiment {
         let responseBlock: @convention(block) (AnyObject, Selector) -> Bool = { object, selector in
             if selector == providerSelector {
                 let configuration = objc_getAssociatedObject(object, &associationKey) as? Configuration
-                configuration?.trace("provider respondsToSelector", details: "returning=true")
                 return configuration != nil
             }
             return originalResponds(object, respondsSelector, selector)
         }
         let providerBlock: @convention(block) (AnyObject, AnyObject?) -> Int = { object, queriedProxy in
-            if let configuration = objc_getAssociatedObject(object, &associationKey) as? Configuration {
-                configuration.trace("provider entry", details: "queryMatches=\(queriedProxy === configuration.proxy)")
-            }
             guard let configuration = objc_getAssociatedObject(object, &associationKey) as? Configuration else {
                 return (queriedProxy as? NSObject).flatMap { contentType(of: $0) } ?? 4
             }
@@ -593,8 +551,7 @@ final class PiPCoexistenceExperiment {
             let providedType = configuration.providedType
             let count = configuration.recordCall()
             if count <= 2 {
-                let stack = Thread.callStackSymbols.prefix(12).joined(separator: " <- ")
-                AppDebugLogger.logCritical("PiP class-provider CALLED #\(count): returning \(providedType); threadMain=\(Thread.isMainThread); stack=\(stack)")
+                AppDebugLogger.log("PiP content provider called #\(count): returning \(providedType)")
             }
             return providedType
         }
@@ -607,63 +564,6 @@ final class PiPCoexistenceExperiment {
         }
         class_replaceMethod(base, respondsSelector, responseIMP, encoding)
         providers[NSStringFromClass(base)] = providerIMP
-        return true
-    }
-
-    // Bounded instrumentation only: every wrapper forwards the original arguments exactly once.
-    private static func installWriteTrace(adapter: NSObject, proxy: NSObject, state: NSObject, configuration: Configuration) {
-        objc_setAssociatedObject(proxy, &traceKey, configuration, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        objc_setAssociatedObject(state, &traceKey, configuration, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        let setterSelector = NSSelectorFromString("setContentType:")
-        if let stateClass = object_getClass(state),
-           let setter = method(stateClass, selector: setterSelector, result: "v", arguments: ["q"]),
-           let encoding = method_getTypeEncoding(setter) {
-            let key = "\(NSStringFromClass(stateClass)).setContentType:"
-            if !traceHooks.contains(key) {
-                let original = unsafeBitCast(method_getImplementation(setter), to: IntegerSetter.self)
-                let block: @convention(block) (AnyObject, Int) -> Void = { object, value in
-                    let context = (objc_getAssociatedObject(object, &traceKey) as? Configuration)
-                        ?? (Thread.current.threadDictionary[threadTraceKey] as? Configuration)
-                    context?.trace("setContentType", details: "state=\(Unmanaged.passUnretained(object).toOpaque()), newValue=\(value)", limit: 24)
-                    original(object, setterSelector, value)
-                }
-                class_replaceMethod(stateClass, setterSelector, imp_implementationWithBlock(block), encoding)
-                traceHooks.insert(key)
-            }
-        }
-        let adapterHook = installUpdateTrace(owner: adapter, selectorName: "_updateProxyPlaybackState", association: true)
-        let proxyHook = installUpdateTrace(owner: proxy, selectorName: "_updatePlaybackStateContentTypeIfNeeded", association: false)
-        AppDebugLogger.logCritical("PiP WRITE-TRACE armed: session=\(configuration.traceID), adapterUpdate=\(adapterHook), proxyRecalculate=\(proxyHook), setter=\(object_getClass(state).map(NSStringFromClass) ?? "unknown"); bounded stacks, original arguments/results unchanged; timing may be affected. Restart app to fully clear hooks.")
-    }
-
-    private static func installUpdateTrace(owner: NSObject, selectorName: String, association: Bool) -> Bool {
-        let selector = NSSelectorFromString(selectorName)
-        guard let type = object_getClass(owner),
-              let implementation = method(type, selector: selector, result: "v"),
-              let encoding = method_getTypeEncoding(implementation) else { return false }
-        let key = "\(NSStringFromClass(type)).\(selectorName)"
-        if traceHooks.contains(key) { return true }
-        let original = unsafeBitCast(method_getImplementation(implementation), to: VoidMethod.self)
-        let block: @convention(block) (AnyObject) -> Void = { object in
-            let context = (association
-                ? objc_getAssociatedObject(object, &associationKey)
-                : objc_getAssociatedObject(object, &traceKey)) as? Configuration
-            guard let context else { original(object, selector); return }
-            let dictionary = Thread.current.threadDictionary
-            let previous = dictionary[threadTraceKey]
-            dictionary[threadTraceKey] = context
-            defer {
-                if let previous { dictionary[threadTraceKey] = previous }
-                else { dictionary.removeObject(forKey: threadTraceKey) }
-            }
-            if let proxy = context.proxy, let state = Self.object(proxy, selector: "playbackState") {
-                objc_setAssociatedObject(state, &traceKey, context, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            }
-            context.trace(selectorName, details: "owner=\(Unmanaged.passUnretained(object).toOpaque())")
-            original(object, selector)
-        }
-        class_replaceMethod(type, selector, imp_implementationWithBlock(block), encoding)
-        traceHooks.insert(key)
         return true
     }
 
@@ -680,13 +580,6 @@ final class PiPCoexistenceExperiment {
         }
         guard let adapter else { return }
         let calls = configuration?.callCount ?? 0
-        configuration?.endTracing()
-        if let proxy {
-            objc_setAssociatedObject(proxy, &Self.traceKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            if let state = Self.object(proxy, selector: "playbackState") {
-                objc_setAssociatedObject(state, &Self.traceKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            }
-        }
         objc_setAssociatedObject(adapter, &Self.associationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         if let proxy, let previous = originalContentType, Self.contentType(of: proxy) == 6,
            let state = Self.object(proxy, selector: "playbackState"), let type = object_getClass(state),

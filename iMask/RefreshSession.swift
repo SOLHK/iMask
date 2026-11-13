@@ -2,7 +2,7 @@ import Darwin
 import SwiftUI
 import UIKit
 
-struct RefreshEngineState {
+struct RefreshEngineState: Equatable {
     var active = false
     var transitioning = false
     var suspended = false
@@ -46,11 +46,11 @@ final class RefreshSession: NSObject, ObservableObject {
     let controller = ViewController()
     let screenMaximum = UIScreen.main.maximumFramesPerSecond
     var onShortcutRequested: (() -> Void)?
-    var onEngineStateChanged: (() -> Void)?
     private let profileKey = "imask.floatingProfile.beforeIsland"
     private var foregroundLink: CADisplayLink?
     private lazy var displayTarget = ForegroundDisplayTarget(owner: self)
     private var isForeground = false
+    private var synchronizationScheduled = false
     private var sampleStart: CFTimeInterval = 0
     private var sampledFrames = 0
 
@@ -65,13 +65,14 @@ final class RefreshSession: NSObject, ObservableObject {
         MetricKitLogger.shared.stop()
         AppDebugLogger.isDebugModeEnabled = loggingEnabled
         if loggingEnabled { beginRecording() }
-        controller.imaskDidChange = { [weak self] in
-            DispatchQueue.main.async { self?.synchronize() }
+        controller.imaskDidChange = { [weak self] in self?.scheduleSynchronization() }
+        controller.imaskDidAppear = { [weak self] in
+            self?.restoreFloatingProfile()
+            self?.performPendingShortcut()
         }
-        controller.imaskDidAppear = { [weak self] in self?.performPendingShortcut() }
         NotificationCenter.default.addObserver(self, selector: #selector(shortcutRequested),
             name: PiPShortcutActionCenter.didRequestActionNotification, object: nil)
-        diagnostics.record("app.launched", "version=2.4; engine=GlobalRefresh-PiP; upstream=1b62341")
+        diagnostics.record("app.launched", "version=1.1; engine=GlobalRefresh-PiP; upstream=1b62341")
     }
 
     deinit {
@@ -166,39 +167,14 @@ final class RefreshSession: NSObject, ObservableObject {
         RefreshTelemetry.shared.start(log: diagnostics)
     }
 
-    func prepareIslandDriver() {
-        let defaults = UserDefaults.standard
-        if defaults.data(forKey: profileKey) == nil {
-            let state = controller.imaskState
-            let profile = FloatingWindowProfile(route: state.route.rawValue, policy: state.policy.rawValue,
-                height: state.height, scrolling: state.scrolling, clock: state.clock,
-                extremeSilent: state.extremeSilent, contentExtreme: state.contentExtreme)
-            do { defaults.set(try JSONEncoder().encode(profile), forKey: profileKey) }
-            catch { diagnostics.recordError("islandDriver.profileSaveFailed", error) }
-        }
-        controller.imaskApplyProfile(FloatingWindowProfile(route: "videoCall", policy: "pipOnly", height: 0.1,
-            scrolling: true, clock: false, extremeSilent: false, contentExtreme: false))
-        synchronize()
-    }
-
     func restoreFloatingProfile() {
         guard let data = UserDefaults.standard.data(forKey: profileKey) else { return }
         do {
-            controller.imaskApplyProfile(try JSONDecoder().decode(FloatingWindowProfile.self, from: data))
+            let profile = try JSONDecoder().decode(FloatingWindowProfile.self, from: data)
+            guard controller.imaskApplyProfile(profile) else { return }
             UserDefaults.standard.removeObject(forKey: profileKey)
             synchronize()
         } catch { diagnostics.recordError("islandDriver.profileRestoreFailed", error) }
-    }
-
-    func waitForIslandDriver() async -> Bool {
-        for _ in 0..<150 {
-            refresh()
-            if controller.imaskIslandDriverReady { return true }
-            do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
-        }
-        diagnostics.record(engine.active ? "islandDriver.coexistenceTimeout" : "islandDriver.startTimeout",
-            "active=\(engine.active); height=\(engine.height)")
-        return false
     }
 
     func setShortcuts(_ enabled: Bool) {
@@ -275,8 +251,18 @@ final class RefreshSession: NSObject, ObservableObject {
     }
 
     func refresh() {
-        controller.imaskRefresh()
+        if controller.isViewLoaded { controller.imaskRefresh() }
         synchronize()
+    }
+
+    private func scheduleSynchronization() {
+        guard !synchronizationScheduled else { return }
+        synchronizationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.synchronizationScheduled = false
+            self.synchronize()
+        }
     }
 
     private func synchronize() {
@@ -284,18 +270,18 @@ final class RefreshSession: NSObject, ObservableObject {
         if actual.active != engine.active || actual.transitioning != engine.transitioning {
             diagnostics.record("pip.stateChanged", "active=\(actual.active); transitioning=\(actual.transitioning)")
         }
-        engine = actual
+        if engine != actual { engine = actual }
         RefreshTelemetry.shared.update(pip: actual.active, audio: BackgroundTaskManager.shared.isPlaying)
-        isMinimized = engine.height <= engine.minimumHeight + 0.01
+        let minimized = actual.height <= actual.minimumHeight + 0.01
+        if isMinimized != minimized { isMinimized = minimized }
         updateForegroundProbe()
-        onEngineStateChanged?()
     }
 
     private func updateForegroundProbe() {
         guard isForeground, engine.active else {
             foregroundLink?.invalidate()
             foregroundLink = nil
-            foregroundFPS = nil
+            if foregroundFPS != nil { foregroundFPS = nil }
             return
         }
         guard foregroundLink == nil else { return }
