@@ -19,8 +19,8 @@ final class RefreshTelemetry {
             let timestamp = link.timestamp
             let scheduled = link.targetTimestamp - timestamp
             schedulerFPS = scheduled > 0 ? 1 / scheduled : 0
-            requestedFPS = Double(link.preferredFrameRateRange.preferred > 0
-                ? link.preferredFrameRateRange.preferred : Float(link.preferredFramesPerSecond))
+            let preferred = link.preferredFrameRateRange.preferred ?? 0
+            requestedFPS = preferred > 0 ? Double(preferred) : Double(link.preferredFramesPerSecond)
             defer { previous = timestamp }
             guard let previous else { return }
             let delta = timestamp - previous
