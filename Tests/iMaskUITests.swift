@@ -33,11 +33,13 @@ final class iMaskUITests: XCTestCase {
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 10))
         waitForHomeIcons(in: springboard)
-        let standardWidth = assertSystemIsland("桌面 · 活动运行中")
+        assertSystemIsland("桌面 · 活动运行中")
 
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
-        assertSystemIsland("系统设置 · 活动运行中", expectedWidth: standardWidth)
+        // The system can change the outer width across contexts and transitions.
+        // Compare all three presets in the same foreground app.
+        let standardWidth = assertSystemIsland("系统设置 · 活动运行中")
 
         app.activate()
         app.segmentedControls["maskWidth"].buttons["加宽"].tap()
@@ -116,7 +118,7 @@ final class iMaskUITests: XCTestCase {
         } while Date() < deadline
 
         attachScreenshot(name)
-        XCTFail("No black system Island observed in \(name).", line: line)
+        XCTFail("No stable Island width in \(name). Last=\(lastWidth)pt, expected=\(String(describing: expectedWidth))pt.", line: line)
         return lastWidth
     }
 
