@@ -744,7 +744,9 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         }
         DiagnosticsRuntimeState.updateCurrentPage("悬浮窗")
         updateDiagnosticsPiPState()
-        enableDefaultPiPStoppedNotificationAfterLaunchCelebrationIfNeeded()
+        // iMask owns the home screen, so no upstream launch celebration is presented.
+        enableDefaultPiPStoppedNotificationIfNeeded()
+        _ = performPendingShortcutActionIfNeeded(reason: "iMask appeared")
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

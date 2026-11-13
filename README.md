@@ -32,7 +32,7 @@ iMask 2.1 在重新设计的 SwiftUI 界面中集成 GlobalRefresh-PiP 高刷运
 
 ## 构建与签名
 
-在 Xcode 中打开 `iMask.xcodeproj`，选择 `iMask` scheme。项目级 `IMASK_BUNDLE_IDENTIFIER` 可改为你的团队 ID，主 App 和 iMaskWidget 都需要设置同一 Team。
+在 Xcode 27 中打开 `iMask.xcodeproj`，选择 `iMask` scheme。原项目使用 iOS 27 MetricKit 接口，因此编译需要 Xcode 27 SDK，部署最低版本仍为 iOS 17。项目级 `IMASK_BUNDLE_IDENTIFIER` 可改为你的团队 ID，主 App 和 iMaskWidget 都需要设置同一 Team。
 
 ```sh
 bash scripts/build-unsigned-ipa.sh

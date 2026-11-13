@@ -43,11 +43,23 @@ final class RefreshSession: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        DiagnosticsResetManager.resetDiagnosticsIfBuildChanged()
+        DiagnosticsResetManager.clearDiagnosticsIfDebugModeDisabled()
+        AppDebugLogger.trimOnLaunch()
+        AppDebugLogger.registerBackgroundFlush()
+        CacheCleanupManager.cleanOnLaunch()
         KeepAliveModeText.migrateDefaultToLowPowerPiPIfNeeded()
         DemoFrameRatePreference.migrateLegacySettingIfNeeded()
         GeneratedPiPVideoCache.prepareForLaunch()
         LightweightRuntimeDiagnostics.start()
         PiPShortcutRuntimeRegistration.warmUpProviderIfAvailable()
+        debugEnabled = AppDebugLogger.isDebugModeEnabled
+        if debugEnabled {
+            DiagnosticsRuntimeState.startAppStateTracking()
+            MetricKitLogger.shared.start()
+            DebugDiagnosticsMonitor.setEnabled(true)
+            ProcessTerminationDiagnostics.prepareForLaunch()
+        }
         controller.imaskDidChange = { [weak self] in
             DispatchQueue.main.async { self?.synchronize() }
         }
@@ -116,6 +128,10 @@ final class RefreshSession: NSObject, ObservableObject {
         if enabled {
             DiagnosticsRuntimeState.startAppStateTracking()
             MetricKitLogger.shared.start()
+            ProcessTerminationDiagnostics.prepareForLaunch()
+        } else {
+            DiagnosticsRuntimeState.stopAppStateTracking()
+            MetricKitLogger.shared.stop()
         }
         debugEnabled = enabled
     }
@@ -135,7 +151,11 @@ final class RefreshSession: NSObject, ObservableObject {
         }
     }
 
-    @objc private func shortcutRequested() {
+    @objc nonisolated private func shortcutRequested() {
+        Task { @MainActor [weak self] in self?.performPendingShortcut() }
+    }
+
+    private func performPendingShortcut() {
         guard controller.isViewLoaded, controller.view.window != nil else { return }
         _ = controller.performPendingShortcutActionIfNeeded(reason: "iMask")
         synchronize()

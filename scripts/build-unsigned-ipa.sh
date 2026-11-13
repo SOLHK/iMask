@@ -3,6 +3,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [[ -d /Applications/Xcode_27.2.app/Contents/Developer ]]; then
+  export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
+fi
+
 if [[ $(uname -s) != Darwin ]] || ! xcodebuild -version; then
   printf 'Building the IPA requires macOS with full Xcode selected.\n' >&2
   exit 1
