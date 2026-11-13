@@ -79,7 +79,7 @@ struct ContentView: View {
 
                 Section("显示限制") {
                     Text("在配备灵动岛的 iPhone 上，桌面和其他 App 可显示黑色实时活动。其他活动、系统提示和显示环境会影响它是否出现。")
-                    Text("每次最多持续 8 小时。系统结束后，可以回到 iMask 重新开启。锁屏可能显示对应的黑色卡片。")
+                    Text("每次最多持续 8 小时。系统结束后，可以回到 iMask 重新开启。")
                     Text("轻点灵动岛中的 iMask 活动会打开本 App，长按会展开，均由 iOS 处理。")
                 }
                 .font(.subheadline)

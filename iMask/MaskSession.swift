@@ -242,6 +242,8 @@ final class MaskSession: ObservableObject {
         selectedWidth=\(selectedWidth.rawValue)
         compactSideWidthPoints=\(selectedWidth.sideWidth)
         compactContentHeightPoints=16
+        lockScreenContent=transparent
+        lockScreenRequestedContentHeightPoints=0
         actualIslandGeometry=unavailable
         actualIslandVisibility=unavailable
         widgetBundlePresent=\(extensionBundle != nil)

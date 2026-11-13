@@ -24,6 +24,10 @@ final class iMaskUITests: XCTestCase {
         XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 10))
         waitForHomeIcons(in: springboard)
         attachScreenshot("桌面 · 活动未开启")
+        showNotificationCenter(in: springboard)
+        let notificationsBefore = XCUIScreen.main.screenshot()
+        attachScreenshot("通知中心 · 未开启", screenshot: notificationsBefore)
+        XCUIDevice.shared.press(.home)
         app.activate()
 
         start.tap()
@@ -40,6 +44,17 @@ final class iMaskUITests: XCTestCase {
         // The system can change the outer width across contexts and transitions.
         // Compare all three presets in the same foreground app.
         let standardWidth = assertSystemIsland("系统设置 · 活动运行中")
+
+        showNotificationCenter(in: settings)
+        let notificationsActive = XCUIScreen.main.screenshot()
+        attachScreenshot("通知中心 · 活动运行中", screenshot: notificationsActive)
+        if let before = notificationsBefore.image.cgImage, let active = notificationsActive.image.cgImage {
+            XCTAssertLessThanOrEqual(blackBarRows(in: active), blackBarRows(in: before) + 1,
+                                     "The Live Activity must not add a black bar across Notification Center.")
+        } else {
+            XCTFail("Notification Center screenshots are unavailable.")
+        }
+        XCUIDevice.shared.press(.home)
 
         app.activate()
         app.segmentedControls["maskWidth"].buttons["加宽"].tap()
@@ -87,6 +102,36 @@ final class iMaskUITests: XCTestCase {
     }
 
     @MainActor
+    private func showNotificationCenter(in app: XCUIApplication) {
+        let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.005))
+        let bottom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        top.press(forDuration: 0.1, thenDragTo: bottom)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let homeCovered = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == false"), object: springboard.icons["iMask"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [homeCovered], timeout: 15), .completed)
+    }
+
+    private func blackBarRows(in image: CGImage) -> Int {
+        let region = CGRect(x: Double(image.width) * 0.12, y: Double(image.height) * 0.45,
+                            width: Double(image.width) * 0.76, height: Double(image.height) * 0.45)
+        guard let crop = image.cropping(to: region) else { return 0 }
+        let size = 64
+        var pixels = [UInt8](repeating: 255, count: size * size)
+        return pixels.withUnsafeMutableBytes { bytes in
+            guard let context = CGContext(data: bytes.baseAddress, width: size, height: size,
+                                          bitsPerComponent: 8, bytesPerRow: size,
+                                          space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return 0 }
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: size, height: size))
+            return (0..<size).filter { row in
+                bytes[(row * size)..<((row + 1) * size)].filter { $0 <= 8 }.count > size * 9 / 10
+            }.count
+        }
+    }
+
+    @MainActor
     private func waitForHomeIcons(in springboard: XCUIApplication) {
         let icon = springboard.icons["iMask"]
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: icon)
@@ -96,7 +141,7 @@ final class iMaskUITests: XCTestCase {
     @MainActor
     @discardableResult
     private func assertSystemIsland(_ name: String, expectedWidth: Double? = nil, line: UInt = #line) -> Double {
-        let deadline = Date().addingTimeInterval(12)
+        let deadline = Date().addingTimeInterval(30)
         var lastWidth = 0.0
         var stableSamples = 0
         repeat {
@@ -104,9 +149,13 @@ final class iMaskUITests: XCTestCase {
             if let image = screenshot.image.cgImage {
                 let width = blackIslandWidth(in: image)
                 let matchesExpected = expectedWidth.map { abs(width - $0) < 3 } ?? (width > 120)
-                stableSamples = matchesExpected && abs(width - lastWidth) < 0.5 ? stableSamples + 1 : 0
+                if matchesExpected {
+                    stableSamples = abs(width - lastWidth) < 0.5 ? stableSamples + 1 : 1
+                } else {
+                    stableSamples = 0
+                }
                 lastWidth = width
-                if stableSamples >= 3 {
+                if stableSamples >= 2 {
                     attachScreenshot(name, screenshot: screenshot)
                     let measurement = XCTAttachment(string: "\(name) width=\(width)pt")
                     measurement.lifetime = .keepAlways

@@ -91,7 +91,8 @@ jobs:
           assert len(reports) == 1, f'Expected one app diagnostic export, found {len(reports)}'
           shutil.copyfile(reports[0], 'build/iMask-diagnostics.txt')
           text = reports[0].read_text()
-          required = ['appVersion=1.1', 'selectedWidth=standard', 'deviceModel=',
+          required = ['appVersion=1.2', 'selectedWidth=standard', 'deviceModel=',
+                      'lockScreenContent=transparent',
                       'widgetBundlePresent=true', 'activity.started', 'activity.widthUpdated',
                       'activity.stopped', 'export.prepared', 'from=standard; to=wide',
                       'from=wide; to=narrow', 'from=narrow; to=standard']

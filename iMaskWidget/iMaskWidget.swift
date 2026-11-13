@@ -6,11 +6,10 @@ import WidgetKit
 struct IMaskWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MaskAttributes.self) { _ in
-            Color.black
-                .frame(maxWidth: .infinity, minHeight: 52)
+            Color.clear
+                .frame(height: 0)
                 .accessibilityLabel("iMask 黑色模式")
-                .activityBackgroundTint(.black)
-                .activitySystemActionForegroundColor(.white)
+                .activityBackgroundTint(.clear)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.bottom) {
