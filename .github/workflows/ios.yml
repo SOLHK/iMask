@@ -1,0 +1,98 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      simulator_runner:
+        description: GitHub-hosted runner for UI tests
+        type: choice
+        options:
+          - xcode-27
+          - macos-26
+        default: xcode-27
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and verify the iPhoneOS package
+        run: bash scripts/build-unsigned-ipa.sh
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: iMask-unsigned
+          path: |
+            build/artifacts/iMask-unsigned.ipa
+            build/artifacts/iMask-unsigned.ipa.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  simulator:
+    name: Live Activity UI tests
+    runs-on: ${{ inputs.simulator_runner || 'xcode-27' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test starting, restoring and ending a Live Activity
+        shell: bash
+        run: |
+          if [[ -d /Applications/Xcode_27.2.app/Contents/Developer ]]; then
+            export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
+          fi
+          xcodebuild -version
+
+          destination=$(xcrun simctl list devices available -j | jq -cer '
+            [.devices | to_entries[]
+             | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+             | (.key | split("-")[1:] | map(tonumber)) as $version
+             | .value[]
+             | select(.name == "iPhone 18 Pro" or .name == "iPhone 17")
+             | {name, udid, version: $version}]
+            | sort_by([(.name == "iPhone 18 Pro"), .version])
+            | last
+          ')
+          printf 'Simulator: %s\n' "$destination"
+          device_id=$(jq -er '.udid' <<< "$destination")
+
+          mkdir -p build
+          xcodebuild test -project iMask.xcodeproj -scheme iMask \
+            -destination "platform=iOS Simulator,id=$device_id" \
+            -derivedDataPath build/simulator-derived-data \
+            -resultBundlePath build/iMaskUITests.xcresult \
+            -parallel-testing-enabled NO \
+            -testLanguage zh-Hans -testRegion CN \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Compress Xcode test result bundle
+        if: ${{ !cancelled() }}
+        run: |
+          if [[ -d build/iMaskUITests.xcresult ]]; then
+            ditto -c -k --keepParent build/iMaskUITests.xcresult build/iMaskUITests.xcresult.zip
+          fi
+
+      - name: Upload simulator test results
+        if: ${{ !cancelled() && hashFiles('build/iMaskUITests.xcresult.zip') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: iMask-simulator-test-results
+          path: build/iMaskUITests.xcresult.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
