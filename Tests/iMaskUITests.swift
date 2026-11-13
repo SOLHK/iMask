@@ -77,11 +77,12 @@ final class iMaskUITests: XCTestCase {
 
     private func hasBlackIsland(in image: CGImage) -> Bool {
         // The simulator captures the screen without drawing the physical camera cutout.
-        // Check a centered 40×34pt band in the status bar, clear of the clock and battery.
+        // Use the center of the compact Island. Requiring black through this band
+        // also waits for the width transition from the iPhone 18 Pro idle pill.
         let scale = CGFloat(image.width) / UIScreen.main.bounds.width
-        let width = Int(40 * scale)
-        let height = Int(34 * scale)
-        let region = CGRect(x: (image.width - width) / 2, y: Int(18 * scale), width: width, height: height)
+        let width = Int(112 * scale)
+        let height = Int(10 * scale)
+        let region = CGRect(x: (image.width - width) / 2, y: Int(27 * scale), width: width, height: height)
         guard let strip = image.cropping(to: region) else { return false }
         var luminance = [UInt8](repeating: 255, count: width * height)
         return luminance.withUnsafeMutableBytes { bytes in
@@ -91,7 +92,7 @@ final class iMaskUITests: XCTestCase {
                 bitmapInfo: CGImageAlphaInfo.none.rawValue
             ) else { return false }
             context.draw(strip, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return bytes.lazy.filter { $0 <= 5 }.count > width * height / 3
+            return bytes.lazy.filter { $0 <= 5 }.count > width * height * 9 / 10
         }
     }
 

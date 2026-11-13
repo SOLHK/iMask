@@ -19,10 +19,10 @@ struct IMaskWidget: Widget {
                         .accessibilityLabel("iMask 黑色模式")
                 }
             } compactLeading: {
-                blackTile(width: 18)
+                blackTile(width: 9)
                     .accessibilityLabel("iMask 黑色模式")
             } compactTrailing: {
-                blackTile(width: 18)
+                blackTile(width: 9)
                     .accessibilityHidden(true)
             } minimal: {
                 blackTile(width: 16)
