@@ -80,11 +80,17 @@ jobs:
             -testLanguage zh-Hans -testRegion CN \
             CODE_SIGNING_ALLOWED=NO
 
-          app_data=$(xcrun simctl get_app_container "$device_id" com.imaskapp.iMask data)
-          cp "$app_data/Library/Caches/iMaskExports/iMask-diagnostics.txt" build/iMask-diagnostics.txt
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('build/iMask-diagnostics.txt').read_text()
+          import shutil
+          # Xcode runs tests in a clone and may shut it down after completion.
+          devices = Path.home() / 'Library/Developer/CoreSimulator/Devices'
+          pattern = '*/data/Containers/Data/Application/*/Library/Caches/iMaskExports/iMask-diagnostics.txt'
+          reports = [path for path in devices.glob(pattern)
+                     if 'bundleIdentifier=com.imaskapp.iMask\n' in path.read_text()]
+          assert len(reports) == 1, f'Expected one app diagnostic export, found {len(reports)}'
+          shutil.copyfile(reports[0], 'build/iMask-diagnostics.txt')
+          text = reports[0].read_text()
           required = ['appVersion=1.1', 'selectedWidth=standard', 'deviceModel=',
                       'widgetBundlePresent=true', 'activity.started', 'activity.widthUpdated',
                       'activity.stopped', 'export.prepared', 'from=standard; to=wide',
