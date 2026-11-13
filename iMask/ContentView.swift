@@ -69,11 +69,15 @@ struct ContentView: View {
                         Text(mask.isEnabled ? (running ? "已启动，返回桌面查看灵动岛" : "标准长度 · 纯黑显示") : "请在系统设置中允许 iMask 实时活动")
                             .font(.subheadline).foregroundStyle(.secondary)
                         VStack(spacing: 12) {
-                            LabeledContent("120Hz 高刷驱动", value: session.isRunning ? "运行中" : "未运行")
-                            Text("使用最小化画中画维持高刷驱动")
+                            Toggle("同时开启画中画高刷", isOn: Binding(
+                                get: { modes.islandRefreshEnabled }, set: modes.setIslandRefreshEnabled
+                            ))
+                            .disabled(busy)
+                            LabeledContent("高刷驱动", value: session.isRunning ? "运行中" : "已关闭")
+                            Text("若桌面看不到灵动岛，可关闭高刷再查看。")
                                 .font(.caption).foregroundStyle(.secondary)
-                            if mask.status.isRunning && !session.isRunning {
-                                Button("重启高刷驱动") { modes.restartIslandRefresh() }.disabled(busy)
+                            if mask.status.isRunning && modes.islandRefreshEnabled && !session.isRunning {
+                                Button("重试高刷驱动") { modes.setIslandRefreshEnabled(true) }.disabled(busy)
                             }
                         }
                         .padding(22)

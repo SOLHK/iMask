@@ -93,7 +93,7 @@ struct DiagnosticsView: View {
     }
 
     private var combinedSnapshot: String {
-        "selectedDisplayMode=\(modes.selected.rawValue)\nmodeTransitioning=\(modes.isSwitching)\n"
+        "selectedDisplayMode=\(modes.selected.rawValue)\nmodeTransitioning=\(modes.isSwitching)\nislandRefreshEnabled=\(modes.islandRefreshEnabled)\n"
             + session.diagnosticSnapshot + "\n\n" + mask.diagnosticSnapshot
     }
 

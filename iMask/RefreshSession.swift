@@ -71,7 +71,7 @@ final class RefreshSession: NSObject, ObservableObject {
         controller.imaskDidAppear = { [weak self] in self?.performPendingShortcut() }
         NotificationCenter.default.addObserver(self, selector: #selector(shortcutRequested),
             name: PiPShortcutActionCenter.didRequestActionNotification, object: nil)
-        diagnostics.record("app.launched", "version=2.3; engine=GlobalRefresh-PiP; upstream=1b62341")
+        diagnostics.record("app.launched", "version=2.4; engine=GlobalRefresh-PiP; upstream=1b62341")
     }
 
     deinit {
@@ -196,7 +196,8 @@ final class RefreshSession: NSObject, ObservableObject {
             if controller.imaskIslandDriverReady { return true }
             do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
         }
-        diagnostics.record("islandDriver.startTimeout", "active=\(engine.active); height=\(engine.height)")
+        diagnostics.record(engine.active ? "islandDriver.coexistenceTimeout" : "islandDriver.startTimeout",
+            "active=\(engine.active); height=\(engine.height)")
         return false
     }
 
