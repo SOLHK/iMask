@@ -1615,7 +1615,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         }
 
         guard AVPictureInPictureController.isPictureInPictureSupported() else {
-            print("不支持画中画")
+            AppDebugLogger.console("不支持画中画")
             AppDebugLogger.log("PiP unsupported")
             return false
         }
@@ -1778,7 +1778,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
 
     private func setupPlayer() {
         guard let playerItem = makePlayerItem() else {
-            print("未能生成画中画占位视频")
+            AppDebugLogger.console("未能生成画中画占位视频")
             AppDebugLogger.log("makePlayerItem failed")
             return
         }
@@ -2677,7 +2677,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: .mixWithOthers)
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print(error)
+            AppDebugLogger.console(error)
         }
     }
 
@@ -3213,7 +3213,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
                     text: videoText
                 )
             } catch {
-                print(error)
+                AppDebugLogger.console(error)
                 AppDebugLogger.log("Placeholder video failed: \(error.localizedDescription)")
                 return nil
             }
@@ -3524,6 +3524,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func stepPlayerLayerActivityDriver(_ displayLink: CADisplayLink) {
+        if DiagnosticRecording.isEnabled { RefreshTelemetry.shared.record(displayLink, source: "playerLayerActivity") }
         guard shouldUsePlayerLayerPiPCompatibility,
               FrameRatePreference.isHighRefreshEnabled,
               pipController?.isPictureInPictureActive == true,
@@ -3610,6 +3611,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func updateScrollingText(_ displayLink: CADisplayLink) {
+        if DiagnosticRecording.isEnabled { RefreshTelemetry.shared.record(displayLink, source: "pipScroll") }
         guard !isContentExtremeModeEnabled, let textView, isScrollingEnabled, !shouldRenderClockMode, shouldRunPiPContentUpdates else {
             stopDisplayLinks()
             return
@@ -3692,6 +3694,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func updateClockDisplay(_ displayLink: CADisplayLink) {
+        if DiagnosticRecording.isEnabled { RefreshTelemetry.shared.record(displayLink, source: "pipClock") }
         guard shouldRenderClockMode, shouldRunPiPContentUpdates else {
             stopClockTimer()
             return
@@ -4035,7 +4038,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
                     self.resetPiPStartStateAfterFailure()
                     let message = "PlayerLayer PiP暂时不可启动：possible=\(pipController.isPictureInPicturePossible), playerReady=\(self.isPlayerReadyForPiP)"
                     AppDebugLogger.log(message)
-                    print(message)
+                    AppDebugLogger.console(message)
                 }
                 return
             }
@@ -4404,7 +4407,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
                 self.resetPiPStartStateAfterFailure()
                 let message = "画中画暂时不可启动：possible=\(pipController.isPictureInPicturePossible), playerReady=\(self.isPlayerReadyForPiP), sourceReady=\(sourceReady)"
                 AppDebugLogger.log(message)
-                print(message)
+                AppDebugLogger.console(message)
             }
         }
 
@@ -4454,7 +4457,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
             }
             self.resetPiPStartStateAfterFailure()
             AppDebugLogger.log("PiP start timeout")
-            print("画中画启动超时，已恢复按钮状态")
+            AppDebugLogger.console("画中画启动超时，已恢复按钮状态")
         }
         pipStartTimeoutWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + piPStartTimeoutDuration, execute: workItem)
@@ -4559,7 +4562,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         pendingPiPStartWorkItem = nil
         pipStartTimeoutWorkItem = nil
 
-        print("\(reason)，低版本兼容模式重试一次")
+        AppDebugLogger.console("\(reason)，低版本兼容模式重试一次")
         AppDebugLogger.log("\(reason), retry legacy compatibility once")
         pipHeight = compactPiPHeight
         isCompactPiPStyle = true
@@ -5276,7 +5279,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func handleEnterForeground() {
-        print("进入前台")
+        AppDebugLogger.console("进入前台")
         startSystemAppearanceFollowTimerIfNeeded()
         if shouldResignForegroundAfterPiPClose {
             DiagnosticsRuntimeState.updateAppState("PiP关闭后阻止回前台")
@@ -5330,7 +5333,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     }
 
     @objc private func handleEnterBackground() {
-        print("进入后台")
+        AppDebugLogger.console("进入后台")
         stopSystemAppearanceFollowTimer()
         if shouldResignForegroundAfterPiPClose {
             shouldResignForegroundAfterPiPClose = false
@@ -5698,7 +5701,7 @@ class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
         }
         resetPiPStartStateAfterFailure()
         releaseTransientPlayerLayerPiPAudioSession(reason: "PiP启动失败")
-        print(error)
+        AppDebugLogger.console(error)
     }
 
 }
@@ -6353,6 +6356,21 @@ extension ViewController {
         )
     }
     var imaskDiagnostics: String { pipSurfaceDiagnosticsText + "\n" + displaySleepDiagnosticsText }
+    var imaskIslandDriverReady: Bool {
+        pipController?.isPictureInPictureActive == true && isHiddenReferenceSession
+            && clampedPiPHeight <= 0.11 && pipCoexistenceExperiment.hasSubmittedPostStartTransition
+    }
+    func imaskApplyProfile(_ profile: FloatingWindowProfile) {
+        guard pipController?.isPictureInPictureActive != true, !isPiPTransitioning else { return }
+        KeepAlivePolicy.current = KeepAlivePolicy(rawValue: profile.policy) ?? .pipOnly
+        pipEngineRoute = PiPEngineRoute(rawValue: profile.route) ?? .videoCall
+        isExtremeSilentModeEnabled = profile.extremeSilent
+        isContentExtremeModeEnabled = profile.contentExtreme
+        isClockModeEnabled = profile.clock
+        isScrollingEnabled = profile.scrolling
+        commitPiPHeight(CGFloat(profile.height))
+        updateHomeView()
+    }
     func imaskStart(hidden: Bool) {
         guard !isPiPTransitioning, pipController?.isPictureInPictureActive != true else { return }
         if hidden { startPiPAndHideFromHome() } else { togglePiP() }

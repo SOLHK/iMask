@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 enum DisplayMode: String, CaseIterable, Identifiable {
     case floatingWindow, island
@@ -7,7 +8,7 @@ enum DisplayMode: String, CaseIterable, Identifiable {
     var title: String { self == .floatingWindow ? "悬浮窗" : "灵动岛" }
 }
 
-/// Serializes the handoff between AVKit and ActivityKit. Only one mode owns a session.
+/// Two user-facing modes. Island mode uses a minimized PiP driver plus a Live Activity.
 @MainActor
 final class DisplayModeSession: ObservableObject {
     @Published private(set) var selected: DisplayMode
@@ -17,6 +18,7 @@ final class DisplayModeSession: ObservableObject {
     private let mask: MaskSession
     private static let preferenceKey = "imask.displayMode"
     private var reconciledLaunch = false
+    private var maskObservation: AnyCancellable?
 
     init(refresh: RefreshSession, mask: MaskSession) {
         self.refresh = refresh
@@ -26,6 +28,13 @@ final class DisplayModeSession: ObservableObject {
         refresh.onShortcutRequested = { [weak self] in
             guard let self, !self.isSwitching, PiPShortcutActionCenter.hasPendingAction else { return }
             self.request(.floatingWindow, start: true, shortcut: true)
+        }
+        maskObservation = mask.$status.sink { [weak self] status in
+            guard let self else { return }
+            RefreshTelemetry.shared.update(island: status.isRunning)
+            if !status.isRunning, self.selected == .island, self.refresh.isRunning, !self.isSwitching {
+                self.request(.island, start: false)
+            }
         }
     }
 
@@ -46,6 +55,7 @@ final class DisplayModeSession: ObservableObject {
     }
 
     func startHiddenWindow() { request(.floatingWindow, start: true, hidden: true) }
+    func restartIslandRefresh() { request(.island, start: true) }
 
     func reconcileOnForeground() {
         guard !isSwitching else { return }
@@ -56,8 +66,13 @@ final class DisplayModeSession: ObservableObject {
                 selected = .island
             }
         }
-        let conflict = selected == .island ? refresh.isRunning : mask.status.isRunning
-        if conflict { request(selected, start: true) }
+        RefreshTelemetry.shared.update(mode: selected.rawValue, island: mask.status.isRunning)
+        if selected == .island {
+            if mask.status.isRunning, !refresh.isRunning { request(.island, start: true) }
+            else if !mask.status.isRunning, refresh.isRunning { request(.island, start: false) }
+        } else if mask.status.isRunning {
+            request(.floatingWindow, start: true)
+        }
     }
 
     private func request(_ mode: DisplayMode, start: Bool, hidden: Bool = false, shortcut: Bool = false) {
@@ -80,15 +95,17 @@ final class DisplayModeSession: ObservableObject {
                     errorMessage = "灵动岛活动尚未停止，请稍后重试。"
                     return
                 }
-                if !start {
+                if !start || selected == .island || refresh.hasIslandDriverProfile {
                     guard await refresh.stopAndReleaseForModeChange() else {
                         errorMessage = "悬浮窗尚未完全停止，请稍后重试。"
                         return
                     }
+                    refresh.restoreFloatingProfile()
                 }
             }
 
             selected = mode
+            RefreshTelemetry.shared.update(mode: mode.rawValue)
             UserDefaults.standard.set(mode.rawValue, forKey: Self.preferenceKey)
             if start {
                 guard UIApplication.shared.applicationState == .active else {
@@ -96,8 +113,25 @@ final class DisplayModeSession: ObservableObject {
                     return
                 }
                 if mode == .island {
+                    guard await refresh.waitForSourceView() else {
+                        errorMessage = "高刷驱动画面尚未就绪，请点击开启重试。"
+                        return
+                    }
+                    refresh.prepareIslandDriver()
+                    refresh.startAndHide()
+                    let ready = await refresh.waitForIslandDriver()
+                    if !ready {
+                        _ = await refresh.stopAndReleaseForModeChange()
+                        errorMessage = "最小化高刷驱动未能启动，当前仅开启黑色灵动岛。可开启日志后重试。"
+                    }
+                    guard UIApplication.shared.applicationState == .active else {
+                        _ = await refresh.stopAndReleaseForModeChange()
+                        errorMessage = "请返回 iMask 后重新开启灵动岛。"
+                        return
+                    }
                     mask.start()
                     if !mask.status.isRunning {
+                        _ = await refresh.stopAndReleaseForModeChange()
                         errorMessage = mask.errorMessage ?? "请在系统设置中允许 iMask 实时活动。"
                     }
                 } else {

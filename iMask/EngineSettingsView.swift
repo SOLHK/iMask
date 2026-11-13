@@ -52,7 +52,6 @@ struct EngineSettingsView: View {
                     .disabled(!session.engine.route.usesPlayerLayer)
                 Toggle("内容极限静默", isOn: option("contentExtreme", session.engine.contentExtreme))
                 Toggle("快捷指令", isOn: Binding(get: { session.shortcutsEnabled }, set: session.setShortcuts))
-                Toggle("详细诊断", isOn: Binding(get: { session.debugEnabled }, set: session.setDebug))
             }
         }
         .navigationTitle("运行方案与保活")

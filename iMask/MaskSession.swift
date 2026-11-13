@@ -118,7 +118,7 @@ final class MaskSession: ObservableObject {
             diagnostics.record("activity.started", "id=\(activity.id); state=\(activity.activityState)")
             show(activity)
         } catch {
-            logger.error("Live Activity request failed: \(error.localizedDescription, privacy: .public)")
+            if DiagnosticRecording.isEnabled { logger.error("Live Activity request failed: \(error.localizedDescription, privacy: .public)") }
             diagnostics.recordError("activity.startFailed", error)
             refresh(reason: "startFailed")
             if !status.isRunning {

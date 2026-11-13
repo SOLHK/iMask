@@ -23,19 +23,31 @@ struct RefreshEngineState {
     var runtime = "—"
 }
 
+struct FloatingWindowProfile: Codable {
+    var route: String
+    var policy: String
+    var height: Double
+    var scrolling: Bool
+    var clock: Bool
+    var extremeSilent: Bool
+    var contentExtreme: Bool
+}
+
 /// UI adapter only. PiP creation, recovery, audio and hiding stay in the upstream engine.
 @MainActor
 final class RefreshSession: NSObject, ObservableObject {
     @Published private(set) var engine = RefreshEngineState()
     @Published private(set) var foregroundFPS: Double?
     @Published private(set) var isMinimized = false
-    @Published private(set) var debugEnabled = AppDebugLogger.isDebugModeEnabled
+    @Published private(set) var loggingEnabled = DiagnosticRecording.isEnabled
     @Published private(set) var shortcutsEnabled = PiPShortcutFeatureAccess.isEnabled
 
     let diagnostics = DiagnosticsLog()
     let controller = ViewController()
     let screenMaximum = UIScreen.main.maximumFramesPerSecond
     var onShortcutRequested: (() -> Void)?
+    var onEngineStateChanged: (() -> Void)?
+    private let profileKey = "imask.floatingProfile.beforeIsland"
     private var foregroundLink: CADisplayLink?
     private lazy var displayTarget = ForegroundDisplayTarget(owner: self)
     private var isForeground = false
@@ -44,30 +56,22 @@ final class RefreshSession: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        DiagnosticsResetManager.resetDiagnosticsIfBuildChanged()
-        DiagnosticsResetManager.clearDiagnosticsIfDebugModeDisabled()
-        AppDebugLogger.trimOnLaunch()
-        AppDebugLogger.registerBackgroundFlush()
         CacheCleanupManager.cleanOnLaunch()
         KeepAliveModeText.migrateDefaultToLowPowerPiPIfNeeded()
         DemoFrameRatePreference.migrateLegacySettingIfNeeded()
         GeneratedPiPVideoCache.prepareForLaunch()
-        LightweightRuntimeDiagnostics.start()
         PiPShortcutRuntimeRegistration.warmUpProviderIfAvailable()
-        debugEnabled = AppDebugLogger.isDebugModeEnabled
-        if debugEnabled {
-            DiagnosticsRuntimeState.startAppStateTracking()
-            MetricKitLogger.shared.start()
-            DebugDiagnosticsMonitor.setEnabled(true)
-            ProcessTerminationDiagnostics.prepareForLaunch()
-        }
+        DebugDiagnosticsMonitor.setEnabled(false)
+        MetricKitLogger.shared.stop()
+        AppDebugLogger.isDebugModeEnabled = loggingEnabled
+        if loggingEnabled { beginRecording() }
         controller.imaskDidChange = { [weak self] in
             DispatchQueue.main.async { self?.synchronize() }
         }
         controller.imaskDidAppear = { [weak self] in self?.performPendingShortcut() }
         NotificationCenter.default.addObserver(self, selector: #selector(shortcutRequested),
             name: PiPShortcutActionCenter.didRequestActionNotification, object: nil)
-        diagnostics.record("app.launched", "version=2.2; engine=GlobalRefresh-PiP; upstream=1b62341")
+        diagnostics.record("app.launched", "version=2.3; engine=GlobalRefresh-PiP; upstream=1b62341")
     }
 
     deinit {
@@ -78,6 +82,7 @@ final class RefreshSession: NSObject, ObservableObject {
     var isRunning: Bool { engine.active }
     var canStop: Bool { engine.active }
     var isTransitioning: Bool { engine.transitioning }
+    var hasIslandDriverProfile: Bool { UserDefaults.standard.data(forKey: profileKey) != nil }
 
     func start() {
         diagnostics.record("pip.startRequested", "route=\(engine.route.rawValue); policy=\(engine.policy.rawValue); hidden=\(isMinimized)")
@@ -124,18 +129,75 @@ final class RefreshSession: NSObject, ObservableObject {
         synchronize()
     }
 
-    func setDebug(_ enabled: Bool) {
-        AppDebugLogger.isDebugModeEnabled = enabled
-        DebugDiagnosticsMonitor.setEnabled(enabled)
+    func setLogging(_ enabled: Bool) {
+        guard enabled != loggingEnabled else { return }
         if enabled {
-            DiagnosticsRuntimeState.startAppStateTracking()
-            MetricKitLogger.shared.start()
-            ProcessTerminationDiagnostics.prepareForLaunch()
+            diagnostics.setEnabled(true)
+            AppDebugLogger.isDebugModeEnabled = true
+            beginRecording()
         } else {
+            RefreshTelemetry.shared.stop()
+            PowerUsageLogger.stopRecording()
+            LightweightRuntimeDiagnostics.stop()
+            AppDebugLogger.flushSynchronously()
             DiagnosticsRuntimeState.stopAppStateTracking()
+            DebugDiagnosticsMonitor.setEnabled(false)
             MetricKitLogger.shared.stop()
+            diagnostics.setEnabled(false)
+            AppDebugLogger.isDebugModeEnabled = false
+            UIDevice.current.isBatteryMonitoringEnabled = false
+            foregroundFPS = nil
+            sampleStart = 0
+            sampledFrames = 0
         }
-        debugEnabled = enabled
+        loggingEnabled = enabled
+    }
+
+    private func beginRecording() {
+        AppDebugLogger.trimOnLaunch()
+        AppDebugLogger.registerBackgroundFlush()
+        LightweightRuntimeDiagnostics.start()
+        PowerUsageLogger.startFreshStatistics()
+        PowerUsageLogger.markLaunch()
+        if engine.active { PowerUsageLogger.markPiPStart() }
+        if BackgroundTaskManager.shared.isPlaying { PowerUsageLogger.markKeepAliveStart() }
+        KeepAliveLogger.resetLogs()
+        if engine.active { KeepAliveLogger.markPiPStarted(mode: KeepAlivePolicy.current.diagnosticsName) }
+        RefreshTelemetry.shared.start(log: diagnostics)
+    }
+
+    func prepareIslandDriver() {
+        let defaults = UserDefaults.standard
+        if defaults.data(forKey: profileKey) == nil {
+            let state = controller.imaskState
+            let profile = FloatingWindowProfile(route: state.route.rawValue, policy: state.policy.rawValue,
+                height: state.height, scrolling: state.scrolling, clock: state.clock,
+                extremeSilent: state.extremeSilent, contentExtreme: state.contentExtreme)
+            do { defaults.set(try JSONEncoder().encode(profile), forKey: profileKey) }
+            catch { diagnostics.recordError("islandDriver.profileSaveFailed", error) }
+        }
+        controller.imaskApplyProfile(FloatingWindowProfile(route: "videoCall", policy: "pipOnly", height: 0.1,
+            scrolling: true, clock: false, extremeSilent: false, contentExtreme: false))
+        synchronize()
+    }
+
+    func restoreFloatingProfile() {
+        guard let data = UserDefaults.standard.data(forKey: profileKey) else { return }
+        do {
+            controller.imaskApplyProfile(try JSONDecoder().decode(FloatingWindowProfile.self, from: data))
+            UserDefaults.standard.removeObject(forKey: profileKey)
+            synchronize()
+        } catch { diagnostics.recordError("islandDriver.profileRestoreFailed", error) }
+    }
+
+    func waitForIslandDriver() async -> Bool {
+        for _ in 0..<150 {
+            refresh()
+            if controller.imaskIslandDriverReady { return true }
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
+        }
+        diagnostics.record("islandDriver.startTimeout", "active=\(engine.active); height=\(engine.height)")
+        return false
     }
 
     func setShortcuts(_ enabled: Bool) {
@@ -145,6 +207,11 @@ final class RefreshSession: NSObject, ObservableObject {
 
     func sceneChanged(_ phase: ScenePhase) {
         isForeground = phase == .active
+        RefreshTelemetry.shared.update(foreground: isForeground)
+        if phase == .background {
+            RefreshTelemetry.shared.checkpoint(persist: true)
+            diagnostics.flush()
+        }
         diagnostics.record("scene.changed", String(describing: phase))
         updateForegroundProbe()
         if isForeground {
@@ -217,8 +284,10 @@ final class RefreshSession: NSObject, ObservableObject {
             diagnostics.record("pip.stateChanged", "active=\(actual.active); transitioning=\(actual.transitioning)")
         }
         engine = actual
+        RefreshTelemetry.shared.update(pip: actual.active, audio: BackgroundTaskManager.shared.isPlaying)
         isMinimized = engine.height <= engine.minimumHeight + 0.01
         updateForegroundProbe()
+        onEngineStateChanged?()
     }
 
     private func updateForegroundProbe() {
@@ -238,6 +307,8 @@ final class RefreshSession: NSObject, ObservableObject {
     }
 
     fileprivate func sample(_ link: CADisplayLink) {
+        guard DiagnosticRecording.isEnabled else { return }
+        RefreshTelemetry.shared.record(link, source: "foreground")
         guard sampleStart != 0 else { sampleStart = link.timestamp; return }
         sampledFrames += 1
         let elapsed = link.timestamp - sampleStart
@@ -272,6 +343,8 @@ final class RefreshSession: NSObject, ObservableObject {
 
         原项目运行日志
         \(AppDebugLogger.exportText())
+
+        \(RefreshTelemetry.shared.report)
         """
     }
 }

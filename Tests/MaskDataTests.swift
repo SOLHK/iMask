@@ -17,7 +17,10 @@ final class MaskDataTests: XCTestCase {
         let directory = URL.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let log = DiagnosticsLog(directory: directory)
+        log.setEnabled(true)
+        defer { log.setEnabled(false) }
         for index in 0..<260 { log.record("event.\(index)", "test") }
+        log.flush()
         XCTAssertNil(log.storageIssue)
         let restored = DiagnosticsLog(directory: directory)
         XCTAssertEqual(restored.entries.count, DiagnosticsLog.maximumEntries)
@@ -36,7 +39,10 @@ final class MaskDataTests: XCTestCase {
         try Data("occupied".utf8).write(to: file)
         defer { try? FileManager.default.removeItem(at: file) }
         let log = DiagnosticsLog(directory: file)
+        log.setEnabled(true)
+        defer { log.setEnabled(false) }
         log.record("activity.started")
+        log.flush()
         XCTAssertNotNil(log.storageIssue)
         XCTAssertEqual(log.entries.last?.event, "activity.started")
         XCTAssertTrue(log.report(snapshot: "").contains("保存诊断日志失败"))

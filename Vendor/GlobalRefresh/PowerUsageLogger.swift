@@ -78,6 +78,7 @@ enum PowerUsageLogger {
     }
 
     static func exportText() -> String {
+        guard DiagnosticRecording.isEnabled else { return "耗电统计已关闭；请在 iMask 诊断页导出已保存的本轮结果。" }
         UIDevice.current.isBatteryMonitoringEnabled = true
         if !shouldTrackState {
             resetStatistics()
@@ -136,6 +137,14 @@ enum PowerUsageLogger {
     static func startFreshStatistics() {
         resetStatistics()
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: launchDateKey)
+    }
+
+    static func stopRecording() {
+        guard DiagnosticRecording.isEnabled else { return }
+        stopTimer(startKey: foregroundStartKey, totalKey: foregroundTotalKey)
+        stopTimer(startKey: backgroundStartKey, totalKey: backgroundTotalKey)
+        stopTimer(startKey: pipStartKey, totalKey: pipTotalKey)
+        stopTimer(startKey: keepAliveStartKey, totalKey: keepAliveTotalKey)
     }
 
     @discardableResult
@@ -257,7 +266,7 @@ enum PowerUsageLogger {
     }
 
     private static var shouldTrackState: Bool {
-        AppDebugLogger.isDebugModeEnabled || KeepAliveNotificationTester.isAnyNotificationEnabled
+        DiagnosticRecording.isEnabled
     }
 
     private static let beijingFormatter: DateFormatter = {

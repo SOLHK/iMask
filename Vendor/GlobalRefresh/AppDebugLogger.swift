@@ -29,7 +29,7 @@ enum AppDebugLogger {
     private static var memoryBufferBytes = 0
 
     static var isDebugModeEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: debugModeKey) }
+        get { DiagnosticRecording.isEnabled && UserDefaults.standard.bool(forKey: debugModeKey) }
         set { UserDefaults.standard.set(newValue, forKey: debugModeKey) }
     }
 
@@ -43,12 +43,7 @@ enum AppDebugLogger {
         didTrimOnLaunch = true
         registrationLock.unlock()
         logQueue.async {
-            guard isDebugModeEnabled else {
-                memoryBuffer.removeAll(keepingCapacity: false)
-                memoryBufferBytes = 0
-                UserDefaults.standard.removeObject(forKey: storageKey)
-                return
-            }
+            guard isDebugModeEnabled else { return }
             let stored = UserDefaults.standard.stringArray(forKey: storageKey) ?? []
             memoryBuffer = stored.suffix(maximumEntries).map(limitEntry)
             memoryBufferBytes = memoryBuffer.reduce(into: 0) { $0 += $1.utf8.count }
@@ -77,13 +72,15 @@ enum AppDebugLogger {
     }
 
     // 只写内存，不碰 UserDefaults
-    static func log(_ message: String, file: StaticString = #fileID, line: UInt = #line) {
-        append(message, persistImmediately: false, file: file, line: line)
+    static func log(_ message: @autoclosure () -> String, file: StaticString = #fileID, line: UInt = #line) {
+        guard isDebugModeEnabled else { return }
+        append(message(), persistImmediately: false, file: file, line: line)
     }
 
     // 生命周期、内存警告和保活切换使用此入口，避免系统直接终止时最后状态只留在内存。
-    static func logCritical(_ message: String, file: StaticString = #fileID, line: UInt = #line) {
-        append(message, persistImmediately: true, file: file, line: line)
+    static func logCritical(_ message: @autoclosure () -> String, file: StaticString = #fileID, line: UInt = #line) {
+        guard isDebugModeEnabled else { return }
+        append(message(), persistImmediately: true, file: file, line: line)
     }
 
     private static func append(
@@ -106,6 +103,7 @@ enum AppDebugLogger {
         ].joined(separator: " | "))
 
         logQueue.async {
+            guard isDebugModeEnabled else { return }
             memoryBuffer.append(entry)
             memoryBufferBytes += entry.utf8.count
             trimMemoryBuffer()
@@ -118,21 +116,30 @@ enum AppDebugLogger {
 
     // 只在复制日志/进后台/终止时落盘
     static func flush() {
+        guard isDebugModeEnabled else { return }
         logQueue.async {
-            guard isDebugModeEnabled else {
-                memoryBuffer.removeAll(keepingCapacity: false)
-                memoryBufferBytes = 0
-                UserDefaults.standard.removeObject(forKey: storageKey)
-                return
-            }
+            guard isDebugModeEnabled else { return }
             guard !memoryBuffer.isEmpty else { return }
             UserDefaults.standard.set(memoryBuffer, forKey: storageKey)
         }
     }
 
+    static func flushSynchronously() {
+        logQueue.sync {
+            guard DiagnosticRecording.isEnabled, !memoryBuffer.isEmpty else { return }
+            UserDefaults.standard.set(memoryBuffer, forKey: storageKey)
+        }
+    }
+
+    static func console(_ values: Any...) {
+        guard DiagnosticRecording.isEnabled else { return }
+        Swift.print(values.map { String(describing: $0) }.joined(separator: " "))
+    }
+
     static func exportText() -> String {
         var entries: [String] = []
         logQueue.sync { entries = memoryBuffer }
+        if entries.isEmpty { entries = UserDefaults.standard.stringArray(forKey: storageKey) ?? [] }
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "unknown"
         let build = info?["CFBundleVersion"] as? String ?? "unknown"
@@ -253,8 +260,18 @@ enum LightweightRuntimeDiagnostics {
     private static var observerTokens: [NSObjectProtocol] = []
 
     static func start() {
+        guard DiagnosticRecording.isEnabled else { return }
         installObserversIfNeeded()
-        record(reason: "App启动", force: true)
+        record(reason: "开始日志", force: true)
+    }
+
+    static func stop() {
+        observerLock.lock()
+        let tokens = observerTokens
+        observerTokens.removeAll()
+        observerLock.unlock()
+        tokens.forEach(NotificationCenter.default.removeObserver)
+        queue.sync { }
     }
 
     static func recordPiPCheckpoint(
@@ -280,7 +297,7 @@ enum LightweightRuntimeDiagnostics {
     static func exportText() -> String {
         let samples = loadSamplesSynchronously()
         guard !samples.isEmpty else {
-            return "轻量常驻内存记录（调试模式关闭时仍记录）\n暂无记录"
+            return "轻量内存记录（仅开启日志期间）\n暂无记录"
         }
 
         let lines = samples.map { sample in
@@ -308,7 +325,7 @@ enum LightweightRuntimeDiagnostics {
         }
 
         return """
-        轻量常驻内存记录（调试模式关闭时仍记录）
+        轻量内存记录（仅开启日志期间）
         采样规则：PiP运行期间每10分钟一次，并记录启动、前后台切换和内存警告；最多保留320条。
         注意：记录物理占用趋势，不等同于系统确认的Jetsam原因。
 
@@ -333,6 +350,7 @@ enum LightweightRuntimeDiagnostics {
         height: Double? = nil,
         audioPlaying: Bool = false
     ) {
+        guard DiagnosticRecording.isEnabled else { return }
         let now = Date()
         let appState = applicationStateText(UIApplication.shared.applicationState)
         let lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -341,6 +359,7 @@ enum LightweightRuntimeDiagnostics {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
 
         queue.async {
+            guard DiagnosticRecording.isEnabled else { return }
             let defaults = UserDefaults.standard
             let previous = defaults.double(forKey: lastPeriodicSampleKey)
             guard force || previous <= 0 || now.timeIntervalSince1970 - previous >= minimumPeriodicInterval else {

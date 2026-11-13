@@ -331,7 +331,7 @@ enum KeepAliveLogger {
     }
 
     private static var shouldTrackState: Bool {
-        AppDebugLogger.isDebugModeEnabled || KeepAliveNotificationTester.isAnyNotificationEnabled
+        DiagnosticRecording.isEnabled
     }
 
     private static func storedDateText(_ key: String) -> String {

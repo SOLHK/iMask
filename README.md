@@ -1,6 +1,6 @@
 # iMask
 
-iMask 2.2 在重新设计的 SwiftUI 界面中集成 GlobalRefresh-PiP 高刷运行核心，并恢复标准长度的纯黑灵动岛。首页可选择悬浮窗或灵动岛模式，同一时间只运行一种。最低支持 iOS 17。
+iMask 2.3 在重新设计的 SwiftUI 界面中集成 GlobalRefresh-PiP 高刷运行核心，并恢复标准长度的纯黑灵动岛。首页可选择悬浮窗或灵动岛模式。灵动岛模式会同时使用最小化 PiP 作为高刷驱动。最低支持 iOS 17。
 
 ## 功能
 
@@ -16,13 +16,13 @@ iMask 2.2 在重新设计的 SwiftUI 界面中集成 GlobalRefresh-PiP 高刷运
 
 1. 开启高刷，或使用“一键开启并隐藏悬浮窗”。
 2. 在“运行方案与保活”里选择底层和保活模式、调整窗口与内容选项。切换底层时沿用原项目的停止与重建流程。
-3. 首页选择“灵动岛”，固定使用标准长度。运行中切换模式会先停止前一种功能并释放其资源，然后启动目标功能；未运行时只切换页面。选择灵动岛时会停止 PiP 与其音频保活，返回桌面查看系统灵动岛。
+3. 首页选择“灵动岛”，固定使用标准长度。运行中切换模式会协调停止与重新启动。灵动岛模式先启动 VideoCall / 仅 PiP / 0.1 pt 驱动，再开启标准长度实时活动；选择悬浮窗时恢复之前的底层、保活、内容与高度选项。返回桌面查看系统灵动岛。驱动失败时会明确提示，并允许单独保留黑色实时活动。
 4. 快捷指令开关开启后，可使用 iMask 的原生“打开并一键 0.1pt”动作，也支持 `imask://startandhide`。
-5. 出现问题时，开启详细诊断、复现问题，再从诊断页导出日志。
+5. 出现问题时，在诊断页开启日志、复现问题，再关闭日志并导出。默认关闭。每次开启开始新一轮刷新和电量统计，关闭后停止采样、计时、写盘，保留本轮结果。
 
 ## 实际行为与来源
 
-高刷运行机制、后台策略与内置隐藏/共存适配来自原项目，首页及设置入口由 iMask 实现。`Vendor/GlobalRefresh` 中保留上游源码；`ViewController.swift` 仅替换原首页 SwiftUI 挂载与刷新入口，增加调用桥接。未创建上游的首页、设置、版本或教程页面。依赖的 SnapKit 以源码编入，保留 MIT 许可证，无付费 SDK。
+高刷运行机制、后台策略与内置隐藏/共存适配来自原项目，首页及设置入口由 iMask 实现。`Vendor/GlobalRefresh` 中保留上游源码；`ViewController.swift` 增加 iMask 界面桥接、模式协调和可关闭的诊断采样。未创建上游的首页、设置、版本或教程页面。依赖的 SnapKit 以源码编入，保留 MIT 许可证，无付费 SDK。
 
 原项目的隐藏/共存包含系统内部适配，例如 `_proxyControlsStyle` 和 PiP 内容类型切换，并非 Apple 公开保证的能力。相关检查与失败处理保留在 `PiPCoexistenceExperiment.swift`。普通 IPA 无法保证所有 App 和系统版本全局固定 120Hz，实际高刷、共存、熄屏与保活效果需真机确认。“本页帧率”只表示本 App 的前台回调采样。
 
@@ -56,6 +56,16 @@ xcodebuild -exportArchive -archivePath build/iMask.xcarchive \
 
 main 日常更新只编译打包。只有用户明确要求推送 test 后，test 的 push 才运行 UI/数据测试。本次只编译及校验安装包，真机效果交由用户确认；构建通过不代表已验证系统刷新率或后台存活。
 
-## 2.2 预览交付状态
+## 2.3 预览交付状态
 
-本次修改仅发布到 `preview/imask-2.2`，通过 GitHub Actions 手动编译预览 IPA，自动化测试不运行。用户真机确认前不更新 main 或 test。编译结果见对应 Actions 记录，构建通过不代表已通过真机验收。
+本次修改仅发布到 `preview/imask-2.3`，通过 GitHub Actions 手动编译预览 IPA，自动化测试不运行。用户真机确认前不更新 main 或 test。编译结果见对应 Actions 记录，构建通过不代表已通过真机验收。
+
+## 刷新诊断与电量统计
+
+- 使用现有的前台和 PiP CADisplayLink 回调采样，不额外创建用于测量的 DisplayLink。按来源区分前台、PiP 内容、滚动、时钟和 PlayerLayer 驱动。
+- 导出请求帧率、平均回调频率、最短/最长间隔、较长回调间隔及暂停间隔、屏幕上限、低电量模式、温度、充电情况与运行时长。
+- 只有开启日志时才监测电量。报告记录起止电量、未充电观察区间的掉电百分点及每小时估算；不足 5 分钟不外推每小时速率。整机电量受其他 App、屏幕与网络影响，不能视为 iMask 独占耗电。
+- 日志关闭时停止统计定时器与电量通知订阅，不再积累诊断数据。高刷必需的渲染回调仍用于功能运行，不进行诊断采样。模式偏好与必要的运行状态仍正常保存。
+- PiP 高刷驱动与 Live Activity 同时运行的外观仍需真机确认，系统可能不展示实时活动。软件无法保证全局固定 120Hz，也不能直接读取其他 App 或屏幕硬件的当前刷新率；不可获取的数据明确标为 unavailable。
+
+参考：[Apple ProMotion](https://developer.apple.com/documentation/quartzcore/optimizing-iphone-and-ipad-apps-to-support-promotion-displays)、[UIDevice 电量读数](https://developer.apple.com/documentation/uikit/uidevice/batterylevel)。

@@ -21,6 +21,8 @@ final class iMaskUITests: XCTestCase {
         if !diagnostics.isHittable { app.swipeUp() }
         diagnostics.tap()
         XCTAssertTrue(app.buttons["exportDiagnostics"].waitForExistence(timeout: 10))
+        let logging = app.switches["enableLogging"]
+        if logging.value as? String == "0" { logging.tap() }
         app.buttons["exportDiagnostics"].tap()
         let file = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "iMask-diagnostics"))

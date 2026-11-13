@@ -250,6 +250,8 @@ final class PiPHiddenReferenceRenderView: UIView {
             // Freeze visible text without stopping the content-update link.
             textView.setNeedsDisplay()
         }
+        guard DiagnosticRecording.isEnabled else { return }
+        RefreshTelemetry.shared.record(link, source: "pipContent")
         tickCount += 1
         if lastLoggedAt == 0 || link.timestamp - lastLoggedAt >= 10 {
             AppDebugLogger.log("Hidden reference render probe: mode=\(showsClock ? "clock" : "text"), textScrolling=\(isTextScrollingEnabled), ticks=\(tickCount), host=\(bounds.size), surface=\(surface.bounds.size), attached=\(window != nil); \(PiPHiddenReferenceOptions.summary); callbacks do not prove rendered frames or global 120Hz")
@@ -344,6 +346,7 @@ final class PiPCoexistenceExperiment {
     private var installationID: UUID?
     private var postStartScheduled = false
     private var postStartSubmitted = false
+    var hasSubmittedPostStartTransition: Bool { postStartSubmitted }
     private var referenceStartupSubmitted = false
     private static var isRequested: Bool {
         PiPHiddenReferenceMode.isEnabled && PiPHiddenReferenceMode.suppressesRefreshDriver

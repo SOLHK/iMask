@@ -12,6 +12,17 @@ struct DiagnosticsView: View {
     var body: some View {
         Form {
             Section {
+                Toggle("开启日志", isOn: Binding(get: { session.loggingEnabled }, set: { enabled in
+                    session.setLogging(enabled)
+                    refreshReport()
+                }))
+                .accessibilityIdentifier("enableLogging")
+                Text(session.loggingEnabled ? "正在记录刷新回调、电量变化与运行事件" : "记录与统计已停止，保留已记录数据供导出")
+                    .font(.caption).foregroundStyle(.secondary)
+            } footer: {
+                Text("每次开启开始新一轮统计。关闭后停止采样与累计，保留本轮结果。高刷运行本身仍会消耗电量。")
+            }
+            Section {
                 LabeledContent("当前模式", value: modes.selected.title)
                 LabeledContent("画中画状态", value: session.engine.title)
                 LabeledContent("悬浮窗", value: session.isMinimized ? "最小化" : "显示")
@@ -32,10 +43,13 @@ struct DiagnosticsView: View {
                 }
                 .accessibilityIdentifier("exportDiagnostics")
             } footer: {
-                Text("导出设备信息、画中画与灵动岛状态、原项目运行日志和本机诊断事件。")
+                Text("导出当前状态、开启日志期间的刷新采样、电量变化、充电与温度状态、运行时长和事件记录。")
             }
 
             Section {
+                LabeledContent("前台回调采样", value: session.foregroundFPS.map { String(format: "%.1f FPS", $0) } ?? "未采样")
+                Text("其他 App 的帧率和 iMask 独占耗电无法直接读取，报告会明确标为不可获取。")
+                    .font(.caption).foregroundStyle(.secondary)
                 DisclosureGroup("查看完整报告") {
                     Text(report)
                         .font(.system(.caption, design: .monospaced))

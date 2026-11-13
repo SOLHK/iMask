@@ -26,6 +26,12 @@ struct ContentView: View {
                         islandHeader
                     }
 
+                    // Keep an attached source view for the minimized driver in Island mode.
+                    RefreshPreview(session: session)
+                        .frame(maxWidth: 300)
+                        .frame(height: 100)
+                        .clipped()
+
                     HStack(spacing: 8) {
                         if busy {
                             ProgressView()
@@ -62,6 +68,16 @@ struct ContentView: View {
                     } else {
                         Text(mask.isEnabled ? (running ? "已启动，返回桌面查看灵动岛" : "标准长度 · 纯黑显示") : "请在系统设置中允许 iMask 实时活动")
                             .font(.subheadline).foregroundStyle(.secondary)
+                        VStack(spacing: 12) {
+                            LabeledContent("120Hz 高刷驱动", value: session.isRunning ? "运行中" : "未运行")
+                            Text("使用最小化画中画维持高刷驱动")
+                                .font(.caption).foregroundStyle(.secondary)
+                            if mask.status.isRunning && !session.isRunning {
+                                Button("重启高刷驱动") { modes.restartIslandRefresh() }.disabled(busy)
+                            }
+                        }
+                        .padding(22)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
                     }
 
                     NavigationLink {
@@ -102,8 +118,6 @@ struct ContentView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("目标刷新率 120 赫兹")
             Text("目标刷新率").font(.subheadline).foregroundStyle(.secondary)
-            RefreshPreview(session: session)
-                .frame(maxWidth: 300).frame(height: 100).clipped()
         }
         .frame(maxWidth: .infinity).padding(.top, 12)
     }
@@ -154,7 +168,7 @@ struct ContentView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
                     Text("本页帧率").font(.caption).foregroundStyle(.secondary)
-                    Text(session.foregroundFPS.map { String(format: "%.0f FPS", $0) } ?? "—")
+                    Text(session.loggingEnabled ? (session.foregroundFPS.map { String(format: "%.0f FPS", $0) } ?? "—") : "未采样")
                         .font(.title3.weight(.semibold)).monospacedDigit()
                 }
             }
