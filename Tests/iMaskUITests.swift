@@ -46,6 +46,16 @@ final class iMaskUITests: XCTestCase {
         let standardWidth = assertSystemIsland("系统设置 · 活动运行中")
 
         showNotificationCenter(in: settings)
+        let allowActivity = springboard.buttons
+            .matching(NSPredicate(format: "label IN %@", ["Allow", "允许"]))
+            .firstMatch
+        if allowActivity.waitForExistence(timeout: 5) {
+            allowActivity.tap()
+            let promptDismissed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == false"), object: allowActivity
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [promptDismissed], timeout: 10), .completed)
+        }
         let notificationsActive = XCUIScreen.main.screenshot()
         attachScreenshot("通知中心 · 活动运行中", screenshot: notificationsActive)
         if let before = notificationsBefore.image.cgImage, let active = notificationsActive.image.cgImage {
