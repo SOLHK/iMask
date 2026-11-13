@@ -67,6 +67,8 @@ Artifact 解压后可在 Mac 上执行 `shasum -a 256 -c iMask-unsigned.ipa.sha2
 
 诊断中的 `actualIslandGeometry=unavailable` 和 `actualIslandVisibility=unavailable` 表示系统没有开放相应查询 API。日志能确认会话及宽度请求，真机当前的外观需要配合包含状态栏的截图或另一台设备拍照判断。
 
+当前反馈机型为 iPhone 18 Pro Max、iOS 27.3 beta 1。CI 优先使用 iPhone 18 Pro Max；现有 GitHub Xcode 27 镜像提供到 iOS 27.2，27.3 beta 1 的外观和签名安装需要真机复核。请在出现偏短、被挤压或活动消失后，回到 App 导出日志，便于核对当时的系统版本与会话记录。
+
 1. 在 iMask 点「开启黑色模式」，确认首页显示「运行中」，再返回桌面并打开另一个 App。
 2. 查看灵动岛有无文字、图标和边线。分别在浅色背景、深色背景及锁屏后解锁的场景对比。启动另一项实时活动，观察 iOS 如何摆放两项活动。
 3. 重新打开 iMask，确认状态与现有活动一致。长按活动观察展开外观。在 App 内点「关闭黑色模式」，确认活动和锁屏卡片移除。
