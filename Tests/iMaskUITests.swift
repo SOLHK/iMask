@@ -22,7 +22,12 @@ final class iMaskUITests: XCTestCase {
         diagnostics.tap()
         XCTAssertTrue(app.buttons["exportDiagnostics"].waitForExistence(timeout: 10))
         let logging = app.switches["enableLogging"]
-        if logging.value as? String == "0" { logging.tap() }
+        XCTAssertTrue(logging.exists)
+        if logging.value as? String == "0" {
+            // SwiftUI exposes the entire row; the switch itself is at the trailing edge.
+            logging.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(logging.value as? String, "1")
         app.buttons["exportDiagnostics"].tap()
         let file = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "iMask-diagnostics"))
