@@ -80,6 +80,20 @@ jobs:
             -testLanguage zh-Hans -testRegion CN \
             CODE_SIGNING_ALLOWED=NO
 
+          app_data=$(xcrun simctl get_app_container "$device_id" com.imaskapp.iMask data)
+          cp "$app_data/Library/Caches/iMaskExports/iMask-diagnostics.txt" build/iMask-diagnostics.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('build/iMask-diagnostics.txt').read_text()
+          required = ['appVersion=1.1', 'selectedWidth=standard', 'deviceModel=',
+                      'widgetBundlePresent=true', 'activity.started', 'activity.widthUpdated',
+                      'activity.stopped', 'export.prepared', 'from=standard; to=wide',
+                      'from=wide; to=narrow', 'from=narrow; to=standard']
+          for entry in required:
+              assert entry in text, f'Diagnostic export is missing {entry}'
+          print('PASS: exported diagnostic report contains actual lifecycle and width changes')
+          PY
+
       - name: Compress Xcode test result bundle
         if: ${{ !cancelled() }}
         run: |
@@ -92,7 +106,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: iMask-simulator-test-results
-          path: build/iMaskUITests.xcresult.zip
+          path: |
+            build/iMaskUITests.xcresult.zip
+            build/iMask-diagnostics.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

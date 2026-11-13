@@ -17,6 +17,7 @@ final class iMaskUITests: XCTestCase {
         let start = app.buttons["startMask"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         XCTAssertTrue(start.isEnabled, "The simulator must allow Live Activities.")
+        app.segmentedControls["maskWidth"].buttons["标准"].tap()
 
         XCUIDevice.shared.press(.home)
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -32,15 +33,33 @@ final class iMaskUITests: XCTestCase {
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 10))
         waitForHomeIcons(in: springboard)
-        assertSystemIsland("桌面 · 活动运行中")
+        let standardWidth = assertSystemIsland("桌面 · 活动运行中")
 
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
-        assertSystemIsland("系统设置 · 活动运行中")
+        assertSystemIsland("系统设置 · 活动运行中", expectedWidth: standardWidth)
+
+        app.activate()
+        app.segmentedControls["maskWidth"].buttons["加宽"].tap()
+        settings.activate()
+        let wideWidth = assertSystemIsland("系统设置 · 加宽", expectedWidth: standardWidth + 12)
+        XCTAssertGreaterThan(wideWidth, standardWidth + 6)
+
+        app.activate()
+        app.segmentedControls["maskWidth"].buttons["较窄"].tap()
+        settings.activate()
+        let narrowWidth = assertSystemIsland("系统设置 · 较窄", expectedWidth: standardWidth - 12)
+        XCTAssertLessThan(narrowWidth, standardWidth - 6)
+
+        app.activate()
+        app.segmentedControls["maskWidth"].buttons["标准"].tap()
+        settings.activate()
+        assertSystemIsland("系统设置 · 恢复标准", expectedWidth: standardWidth)
 
         app.terminate()
         app.launch()
         assertStatus("运行中", in: app)
+        XCTAssertTrue(app.segmentedControls["maskWidth"].buttons["标准"].isSelected)
 
         XCTAssertTrue(stop.exists)
         stop.tap()
@@ -50,6 +69,19 @@ final class iMaskUITests: XCTestCase {
         app.launch()
         assertStatus("已关闭", in: app)
         XCTAssertTrue(app.buttons["startMask"].isEnabled)
+
+        let diagnostics = app.buttons["openDiagnostics"]
+        if !diagnostics.isHittable { app.swipeUp() }
+        XCTAssertTrue(diagnostics.waitForExistence(timeout: 10))
+        diagnostics.tap()
+        XCTAssertTrue(app.buttons["exportDiagnostics"].waitForExistence(timeout: 10))
+        attachScreenshot("诊断页面")
+        app.buttons["exportDiagnostics"].tap()
+        let file = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "iMask-diagnostics"))
+            .firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10), "The share sheet must contain the exported diagnostic file.")
+        attachScreenshot("诊断日志分享")
     }
 
     @MainActor
@@ -60,39 +92,54 @@ final class iMaskUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertSystemIsland(_ name: String, line: UInt = #line) {
+    @discardableResult
+    private func assertSystemIsland(_ name: String, expectedWidth: Double? = nil, line: UInt = #line) -> Double {
         let deadline = Date().addingTimeInterval(12)
+        var lastWidth = 0.0
+        var stableSamples = 0
         repeat {
             let screenshot = XCUIScreen.main.screenshot()
-            if let image = screenshot.image.cgImage, hasBlackIsland(in: image) {
-                attachScreenshot(name, screenshot: screenshot)
-                return
+            if let image = screenshot.image.cgImage {
+                let width = blackIslandWidth(in: image)
+                let matchesExpected = expectedWidth.map { abs(width - $0) < 3 } ?? (width > 120)
+                stableSamples = matchesExpected && abs(width - lastWidth) < 0.5 ? stableSamples + 1 : 0
+                lastWidth = width
+                if stableSamples >= 3 {
+                    attachScreenshot(name, screenshot: screenshot)
+                    let measurement = XCTAttachment(string: "\(name) width=\(width)pt")
+                    measurement.lifetime = .keepAlways
+                    add(measurement)
+                    return width
+                }
             }
             Thread.sleep(forTimeInterval: 0.35)
         } while Date() < deadline
 
         attachScreenshot(name)
         XCTFail("No black system Island observed in \(name).", line: line)
+        return lastWidth
     }
 
-    private func hasBlackIsland(in image: CGImage) -> Bool {
-        // The simulator captures the screen without drawing the physical camera cutout.
-        // Use the center of the compact Island. Requiring black through this band
-        // also waits for the width transition from the iPhone 18 Pro idle pill.
+    @MainActor
+    private func blackIslandWidth(in image: CGImage) -> Double {
+        // Sample through the pill's center, apart from the clock and battery.
         let scale = CGFloat(image.width) / UIScreen.main.bounds.width
-        let width = Int(112 * scale)
-        let height = Int(10 * scale)
-        let region = CGRect(x: (image.width - width) / 2, y: Int(27 * scale), width: width, height: height)
-        guard let strip = image.cropping(to: region) else { return false }
-        var luminance = [UInt8](repeating: 255, count: width * height)
+        let width = image.width
+        let region = CGRect(x: 0, y: Int(32 * scale), width: width, height: 1)
+        guard let strip = image.cropping(to: region) else { return 0 }
+        var luminance = [UInt8](repeating: 255, count: width)
         return luminance.withUnsafeMutableBytes { bytes in
             guard let context = CGContext(
-                data: bytes.baseAddress, width: width, height: height,
+                data: bytes.baseAddress, width: width, height: 1,
                 bitsPerComponent: 8, bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
                 bitmapInfo: CGImageAlphaInfo.none.rawValue
-            ) else { return false }
-            context.draw(strip, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return bytes.lazy.filter { $0 <= 5 }.count > width * height * 9 / 10
+            ) else { return 0 }
+            context.draw(strip, in: CGRect(x: 0, y: 0, width: width, height: 1))
+            var left = width / 2
+            var right = left
+            while left > 0 && bytes[left - 1] <= 8 { left -= 1 }
+            while right < width && bytes[right] <= 8 { right += 1 }
+            return Double(right - left) / scale
         }
     }
 

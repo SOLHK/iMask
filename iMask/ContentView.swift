@@ -11,7 +11,7 @@ struct ContentView: View {
                 Section {
                     Capsule()
                         .fill(.black)
-                        .frame(width: session.status.isRunning ? 136 : 96, height: 34)
+                        .frame(width: session.status.isRunning ? 108 + 2 * session.selectedWidth.sideWidth : 96, height: 36)
                         .frame(maxWidth: .infinity, minHeight: 102)
                         .background(Color(uiColor: .secondarySystemFill), in: RoundedRectangle(cornerRadius: 12))
                         .padding(.vertical, 8)
@@ -37,11 +37,11 @@ struct ContentView: View {
                         Button("关闭黑色模式", role: .destructive) {
                             Task { await session.stop() }
                         }
-                        .disabled(session.isStopping)
+                        .disabled(session.isBusy)
                         .accessibilityIdentifier("stopMask")
                     } else {
                         Button("开启黑色模式") { session.start() }
-                            .disabled(!session.isEnabled)
+                            .disabled(!session.isEnabled || session.isBusy)
                             .accessibilityIdentifier("startMask")
                     }
 
@@ -50,6 +50,31 @@ struct ContentView: View {
                     }
                 } footer: {
                     Text(session.errorMessage ?? statusDetail)
+                }
+
+                Section {
+                    Picker("宽度微调", selection: Binding(
+                        get: { session.selectedWidth },
+                        set: { width in Task { await session.setWidth(width) } }
+                    )) {
+                        ForEach(MaskWidth.allCases) { width in
+                            Text(width.title).tag(width)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(session.isBusy)
+                    .accessibilityIdentifier("maskWidth")
+                } header: {
+                    Text("宽度微调")
+                } footer: {
+                    Text("标准比 1.0 版更长。切换后返回桌面查看效果，最终尺寸由 iOS 决定。")
+                }
+
+                Section {
+                    NavigationLink("诊断与日志") {
+                        DiagnosticsView(session: session)
+                    }
+                    .accessibilityIdentifier("openDiagnostics")
                 }
 
                 Section("显示限制") {

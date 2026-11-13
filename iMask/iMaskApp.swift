@@ -10,9 +10,13 @@ struct IMaskApp: App {
         WindowGroup {
             ContentView(session: session)
                 .onChange(of: scenePhase, initial: true) { _, phase in
-                    if phase == .active {
-                        session.refresh()
-                    }
+                    session.sceneChanged(phase)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataWillBecomeUnavailableNotification)) { _ in
+                    session.diagnostics.record("device.protectedDataUnavailable")
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)) { _ in
+                    session.diagnostics.record("device.protectedDataAvailable")
                 }
         }
     }

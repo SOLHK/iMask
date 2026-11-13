@@ -16,6 +16,11 @@
 		A10000000000000000000008 /* iMaskWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* iMaskWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000000000000000000009 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* PrivacyInfo.xcprivacy */; };
 		A1000000000000000000000A /* iMaskUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* iMaskUITests.swift */; };
+		A1000000000000000000000B /* DiagnosticsLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* DiagnosticsLog.swift */; };
+		A1000000000000000000000C /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* DiagnosticsView.swift */; };
+		A1000000000000000000000D /* MaskDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* MaskDataTests.swift */; };
+		A1000000000000000000000E /* MaskAttributes.swift in Tests */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* MaskAttributes.swift */; };
+		A1000000000000000000000F /* DiagnosticsLog.swift in Tests */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* DiagnosticsLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +68,9 @@
 		B1000000000000000000000B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B1000000000000000000000C /* iMaskUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iMaskUITests.swift; sourceTree = "<group>"; };
 		B1000000000000000000000D /* iMaskUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iMaskUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000E /* DiagnosticsLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsLog.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* MaskDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaskDataTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +112,8 @@
 				B10000000000000000000001 /* iMaskApp.swift */,
 				B10000000000000000000002 /* ContentView.swift */,
 				B10000000000000000000003 /* MaskSession.swift */,
+				B1000000000000000000000E /* DiagnosticsLog.swift */,
+				B1000000000000000000000F /* DiagnosticsView.swift */,
 				B10000000000000000000006 /* Assets.xcassets */,
 				B10000000000000000000007 /* Info.plist */,
 				B1000000000000000000000B /* PrivacyInfo.xcprivacy */,
@@ -142,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				B1000000000000000000000C /* iMaskUITests.swift */,
+				B10000000000000000000010 /* MaskDataTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -265,6 +276,8 @@
 				A10000000000000000000001 /* iMaskApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000003 /* MaskSession.swift in Sources */,
+				A1000000000000000000000B /* DiagnosticsLog.swift in Sources */,
+				A1000000000000000000000C /* DiagnosticsView.swift in Sources */,
 				A10000000000000000000004 /* MaskAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -283,6 +296,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000000000000000000000A /* iMaskUITests.swift in Sources */,
+				A1000000000000000000000D /* MaskDataTests.swift in Sources */,
+				A1000000000000000000000E /* MaskAttributes.swift in Tests */,
+				A1000000000000000000000F /* DiagnosticsLog.swift in Tests */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,12 +322,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				IMASK_BUNDLE_IDENTIFIER = com.imaskapp.iMask;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -328,11 +344,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				IMASK_BUNDLE_IDENTIFIER = com.imaskapp.iMask;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

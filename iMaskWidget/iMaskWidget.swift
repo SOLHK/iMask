@@ -11,7 +11,7 @@ struct IMaskWidget: Widget {
                 .accessibilityLabel("iMask 黑色模式")
                 .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
-        } dynamicIsland: { _ in
+        } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.bottom) {
                     Color.black
@@ -19,10 +19,10 @@ struct IMaskWidget: Widget {
                         .accessibilityLabel("iMask 黑色模式")
                 }
             } compactLeading: {
-                blackTile(width: 9)
+                blackTile(width: context.state.effectiveWidth.sideWidth)
                     .accessibilityLabel("iMask 黑色模式")
             } compactTrailing: {
-                blackTile(width: 9)
+                blackTile(width: context.state.effectiveWidth.sideWidth)
                     .accessibilityHidden(true)
             } minimal: {
                 blackTile(width: 16)
