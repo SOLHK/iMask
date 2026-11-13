@@ -32,7 +32,7 @@ final class RefreshTelemetry {
             if scheduled > 0, delta > scheduled * 1.5 { longIntervals += 1 }
         }
         var summary: String {
-            "callbacks=\(intervals); sampledSeconds=\(String(format: "%.2f", seconds)); averageCallbackFPS=\(seconds > 0 ? String(format: "%.2f", Double(intervals) / seconds) : "unavailable"); minIntervalMS=\(minimumMS.map { String(format: "%.3f", $0) } ?? "unavailable"); maxIntervalMS=\(maximumMS.map { String(format: "%.3f", $0) } ?? "unavailable"); longIntervals=\(longIntervals); gaps=\(gaps); requestedFPS=\(requestedFPS); schedulerEstimateFPS=\(String(format: "%.2f", schedulerFPS))"
+            "intervalSamples=\(intervals); sampledSeconds=\(String(format: "%.2f", seconds)); averageCallbackFPS=\(seconds > 0 ? String(format: "%.2f", Double(intervals) / seconds) : "unavailable"); minIntervalMS=\(minimumMS.map { String(format: "%.3f", $0) } ?? "unavailable"); maxIntervalMS=\(maximumMS.map { String(format: "%.3f", $0) } ?? "unavailable"); longIntervals=\(longIntervals); gaps=\(gaps); requestedFPS=\(requestedFPS); schedulerEstimateFPS=\(String(format: "%.2f", schedulerFPS))"
         }
     }
 
@@ -112,7 +112,8 @@ final class RefreshTelemetry {
 
     func record(_ link: CADisplayLink, source: String) {
         guard DiagnosticRecording.isEnabled, startedAt != nil, stoppedAt == nil else { return }
-        frames[source, default: Frames()].add(link)
+        let key = "\(mode).\(source).\(foreground ? "foreground" : "background")"
+        frames[key, default: Frames()].add(link)
     }
 
     func update(mode: String? = nil, foreground: Bool? = nil, pip: Bool? = nil, island: Bool? = nil, audio: Bool? = nil) {
@@ -176,7 +177,8 @@ final class RefreshTelemetry {
 
     private func makeReport() -> String {
         let rate = observedDischargeSeconds >= 300
-            ? String(format: "%.3f", observedDrop / observedDischargeSeconds * 3_600) : "unavailable (less than 5 minutes)"
+            ? (observedDrop > 0 ? String(format: "%.3f", observedDrop / observedDischargeSeconds * 3_600) : "no measurable drop")
+            : "unavailable (less than 5 minutes)"
         let frameLines = frames.keys.sorted().map { "\($0): \(frames[$0]!.summary)" }.joined(separator: "\n")
         let runtimeLines = runtime.keys.sorted().map { "\($0)Seconds=\(String(format: "%.1f", runtime[$0]!))" }.joined(separator: "\n")
         return """
