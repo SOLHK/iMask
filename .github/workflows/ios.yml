@@ -2,7 +2,7 @@ name: iOS Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -43,6 +43,7 @@ jobs:
 
   simulator:
     name: Live Activity UI tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     runs-on: ${{ inputs.simulator_runner || 'xcode-27' }}
     timeout-minutes: 25
     steps:
@@ -91,8 +92,8 @@ jobs:
           assert len(reports) == 1, f'Expected one app diagnostic export, found {len(reports)}'
           shutil.copyfile(reports[0], 'build/iMask-diagnostics.txt')
           text = reports[0].read_text()
-          required = ['appVersion=1.2', 'selectedWidth=standard', 'deviceModel=',
-                      'lockScreenContent=transparent',
+          required = ['appVersion=1.3', 'selectedWidth=standard', 'deviceModel=',
+                      'lockScreenContent=emptyView',
                       'widgetBundlePresent=true', 'activity.started', 'activity.widthUpdated',
                       'activity.stopped', 'export.prepared', 'from=standard; to=wide',
                       'from=wide; to=narrow', 'from=narrow; to=standard']
